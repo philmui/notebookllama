@@ -1,9 +1,12 @@
 from dotenv import load_dotenv
+import pandas as pd
 import json
 import os
 import uuid
 import warnings
+import tempfile as tmp
 
+from mrkdwn_analysis import MarkdownAnalyzer
 from pydantic import BaseModel, Field, model_validator
 from llama_index.core.llms import ChatMessage
 from llama_cloud_services import LlamaExtract, LlamaParse
@@ -11,7 +14,7 @@ from llama_cloud_services.extract import SourceText
 from llama_cloud.client import AsyncLlamaCloud
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.llms.openai import OpenAIResponses
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional, Dict
 from typing_extensions import Self
 from pyvis.network import Network
 
@@ -94,6 +97,47 @@ if (
     LLM_STRUCT = LLM.as_structured_llm(MindMap)
 
 
+def md_table_to_pd_dataframe(md_table: Dict[str, list]) -> Optional[pd.DataFrame]:
+    try:
+        df = pd.DataFrame()
+        for i in range(len(md_table["header"])):
+            ls = [row[i] for row in md_table["rows"]]
+            df[md_table["header"][i]] = ls
+        return df
+    except Exception as e:
+        warnings.warn(f"Skipping table as an error occurred: {e}")
+        return None
+
+
+async def parse_file(
+    file_path: str, with_images: bool = False, with_tables: bool = False
+) -> Union[Tuple[Optional[str], Optional[List[str]], Optional[List[pd.DataFrame]]]]:
+    images: Optional[List[str]] = None
+    text: Optional[str] = None
+    tables: Optional[List[pd.DataFrame]] = None
+    document = await PARSER.aparse(file_path=file_path)
+    md_content = await document.aget_markdown_documents()
+    if len(md_content) != 0:
+        text = "\n\n---\n\n".join([doc.text for doc in md_content])
+    if with_images:
+        images = await document.asave_all_images("./static/")
+    if with_tables:
+        if text is not None:
+            tmp_file = tmp.NamedTemporaryFile(
+                suffix=".md", delete=False, delete_on_close=False
+            )
+            with open(tmp_file.name, "w") as f:
+                f.write(text)
+            analyzer = MarkdownAnalyzer(tmp_file.name)
+            md_tables = analyzer.identify_tables()["Table"]
+            tables = []
+            for md_table in md_tables:
+                table = md_table_to_pd_dataframe(md_table=md_table)
+                if table is not None:
+                    tables.append(table)
+    return text, images, tables
+
+
 async def process_file(
     filename: str,
 ) -> Union[Tuple[str, None], Tuple[None, None], Tuple[str, str]]:
@@ -103,8 +147,7 @@ async def process_file(
     await CLIENT.pipelines.add_files_to_pipeline_api(
         pipeline_id=PIPELINE_ID, request=files
     )
-    document = await PARSER.aparse(file_path=filename)
-    md_content = await document.aget_markdown_documents()
+    md_content, _, _ = await parse_file(file_path=filename)
     if len(md_content) == 0:
         return None, None
     text = "\n\n---\n\n".join([md.text for md in md_content])
@@ -163,3 +206,12 @@ async def query_index(question: str) -> Union[str, None]:
         + "\n\n## Sources\n\n- "
         + "\n- ".join(sources)
     )
+
+
+async def get_plots_and_tables(
+    file_path: str,
+) -> Union[Tuple[Optional[List[str]], Optional[List[pd.DataFrame]]]]:
+    _, images, tables = await parse_file(
+        file_path=file_path, with_images=True, with_tables=True
+    )
+    return images, tables

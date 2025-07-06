@@ -1,11 +1,13 @@
 import pytest
 import os
+import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
+from mrkdwn_analysis import MarkdownAnalyzer
 
 from typing import Callable
 from pydantic import ValidationError
-from src.notebookllama.utils import process_file, get_mind_map
+from src.notebookllama.utils import process_file, get_mind_map, md_table_to_pd_dataframe
 from src.notebookllama.models import Notebook
 
 load_dotenv()
@@ -21,6 +23,49 @@ skip_condition = not (
 @pytest.fixture()
 def input_file() -> str:
     return "data/test/brain_for_kids.pdf"
+
+
+@pytest.fixture()
+def markdown_file() -> str:
+    return "data/test/md_sample.md"
+
+
+@pytest.fixture()
+def dataframe_from_tables() -> pd.DataFrame:
+    project_data = {
+        "Project Name": [
+            "User Dashboard",
+            "API Integration",
+            "Mobile App",
+            "Database Migration",
+            "Security Audit",
+        ],
+        "Status": [
+            "In Progress",
+            "Completed",
+            "Planning",
+            "In Progress",
+            "Not Started",
+        ],
+        "Completion %": ["75%", "100%", "25%", "60%", "0%"],
+        "Assigned Developer": [
+            "Alice Johnson",
+            "Bob Smith",
+            "Carol Davis",
+            "David Wilson",
+            "Eve Brown",
+        ],
+        "Due Date": [
+            "2025-07-15",
+            "2025-06-30",
+            "2025-08-20",
+            "2025-07-10",
+            "2025-08-01",
+        ],
+    }
+
+    df = pd.DataFrame(project_data)
+    return df
 
 
 @pytest.fixture()
@@ -102,3 +147,15 @@ async def test_file_processing(input_file: str) -> None:
     except ValidationError:
         notebook_model = None
     assert isinstance(notebook_model, Notebook)
+
+
+def test_table_to_dataframe(
+    markdown_file: str, dataframe_from_tables: pd.DataFrame
+) -> None:
+    analyzer = MarkdownAnalyzer(markdown_file)
+    md_tables = analyzer.identify_tables()["Table"]
+    assert len(md_tables) == 2
+    for md_table in md_tables:
+        df = md_table_to_pd_dataframe(md_table)
+        assert df is not None
+        assert df.equals(dataframe_from_tables)
