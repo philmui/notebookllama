@@ -3,7 +3,7 @@ import pytest
 from src.notebookllama.models import (
     Notebook,
 )
-from src.notebookllama.utils import MindMap, Node, Edge
+from src.notebookllama.utils import MindMap, Node, Edge, ClaimVerification
 from src.notebookllama.audio import MultiTurnConversation, ConversationTurn
 from pydantic import ValidationError
 
@@ -149,3 +149,24 @@ def test_multi_turn_conversation() -> None:
         MultiTurnConversation(conversation=wrong_turns2)
     with pytest.raises(ValidationError):
         MultiTurnConversation(conversation=wrong_turns3)
+
+
+def test_claim_verification() -> None:
+    cl1 = ClaimVerification(
+        claim_is_true=True, supporting_citations=["Support 1", "Support 2"]
+    )
+    assert cl1.claim_is_true
+    assert cl1.supporting_citations == ["Support 1", "Support 2"]
+    cl2 = ClaimVerification(
+        claim_is_true=False, supporting_citations=["Support 1", "Support 2"]
+    )
+    assert cl2.supporting_citations == ["The claim was deemed false."]
+    cl3 = ClaimVerification(
+        claim_is_true=False,
+    )
+    assert cl3.supporting_citations is None
+    with pytest.raises(ValidationError):
+        ClaimVerification(
+            claim_is_true=True,
+            supporting_citations=["Support 1", "Support 2", "Support 3", "Support 4"],
+        )

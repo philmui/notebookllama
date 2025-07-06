@@ -13,9 +13,10 @@ from llama_cloud_services import LlamaExtract, LlamaParse
 from llama_cloud_services.extract import SourceText
 from llama_cloud.client import AsyncLlamaCloud
 from llama_index.core.query_engine import CitationQueryEngine
+from llama_index.core.base.response.schema import Response
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.llms.openai import OpenAIResponses
-from typing import List, Tuple, Union, Optional, Dict
+from typing import List, Tuple, Union, Optional, Dict, cast
 from typing_extensions import Self
 from pyvis.network import Network
 
@@ -89,6 +90,12 @@ class ClaimVerification(BaseModel):
         min_length=1,
         max_length=3,
     )
+
+    @model_validator(mode="after")
+    def validate_claim_ver(self) -> Self:
+        if not self.claim_is_true and self.supporting_citations is not None:
+            self.supporting_citations = ["The claim was deemed false."]
+        return self
 
 
 if (
@@ -216,6 +223,7 @@ async def get_mind_map(summary: str, highlights: List[str]) -> Union[str, None]:
 
 async def query_index(question: str) -> Union[str, None]:
     response = await QE.aquery(question)
+    response = cast(Response, response)
     sources = []
     if not response.response:
         return None
