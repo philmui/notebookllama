@@ -12,6 +12,7 @@ from llama_index.core.llms import ChatMessage
 from llama_cloud_services import LlamaExtract, LlamaParse
 from llama_cloud_services.extract import SourceText
 from llama_cloud.client import AsyncLlamaCloud
+from llama_index.core.query_engine import CitationQueryEngine
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.llms.openai import OpenAIResponses
 from typing import List, Tuple, Union, Optional, Dict
@@ -78,6 +79,18 @@ class MindMapCreationFailedWarning(Warning):
     """A warning returned if the mind map creation failed"""
 
 
+class ClaimVerification(BaseModel):
+    claim_is_true: bool = Field(
+        description="Based on the provided sources information, the claim passes or not."
+    )
+    supporting_citations: Optional[List[str]] = Field(
+        description="A minimum of one and a maximum of three citations from the sources supporting the claim. If the claim is not supported, please leave empty",
+        default=None,
+        min_length=1,
+        max_length=3,
+    )
+
+
 if (
     os.getenv("LLAMACLOUD_API_KEY", None)
     and os.getenv("EXTRACT_AGENT_ID", None)
@@ -91,10 +104,17 @@ if (
     )
     PARSER = LlamaParse(api_key=os.getenv("LLAMACLOUD_API_KEY"), result_type="markdown")
     PIPELINE_ID = os.getenv("LLAMACLOUD_PIPELINE_ID")
-    QE = LlamaCloudIndex(
+    RETR = LlamaCloudIndex(
         api_key=os.getenv("LLAMACLOUD_API_KEY"), pipeline_id=PIPELINE_ID
-    ).as_query_engine(llm=LLM)
+    ).as_retriever()
+    QE = CitationQueryEngine(
+        retriever=RETR,
+        llm=LLM,
+        citation_chunk_size=256,
+        citation_chunk_overlap=50,
+    )
     LLM_STRUCT = LLM.as_structured_llm(MindMap)
+    LLM_VERIFIER = LLM.as_structured_llm(ClaimVerification)
 
 
 def md_table_to_pd_dataframe(md_table: Dict[str, list]) -> Optional[pd.DataFrame]:
@@ -196,9 +216,11 @@ async def get_mind_map(summary: str, highlights: List[str]) -> Union[str, None]:
 
 async def query_index(question: str) -> Union[str, None]:
     response = await QE.aquery(question)
+    sources = []
     if not response.response:
         return None
-    sources = [node.text for node in response.source_nodes]
+    if response.source_nodes is not None:
+        sources = [node.text for node in response.source_nodes]
     return (
         "## Answer\n\n"
         + response.response
@@ -214,3 +236,19 @@ async def get_plots_and_tables(
         file_path=file_path, with_images=True, with_tables=True
     )
     return images, tables
+
+
+def verify_claim(
+    claim: str,
+    sources: str,
+) -> Tuple[bool, Optional[List[str]]]:
+    response = LLM_VERIFIER.chat(
+        [
+            ChatMessage(
+                role="user",
+                content=f"I have this claim: {claim} that is allegedgly supported by these sources:\n\n'''\n{sources}\n'''\n\nCan you please tell me whether or not this claim is thrutful and, if it is, identify one to three passages in the sources specifically supporting the claim?",
+            )
+        ]
+    )
+    response_json = json.loads(response.message.content)
+    return response_json["claim_is_true"], response_json["supporting_citations"]
