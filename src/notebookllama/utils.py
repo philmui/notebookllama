@@ -147,10 +147,9 @@ async def process_file(
     await CLIENT.pipelines.add_files_to_pipeline_api(
         pipeline_id=PIPELINE_ID, request=files
     )
-    md_content, _, _ = await parse_file(file_path=filename)
-    if len(md_content) == 0:
+    text, _, _ = await parse_file(file_path=filename)
+    if text is None:
         return None, None
-    text = "\n\n---\n\n".join([md.text for md in md_content])
     extraction_output = await EXTRACT_AGENT.aextract(
         files=SourceText(text_content=text, filename=file.name)
     )

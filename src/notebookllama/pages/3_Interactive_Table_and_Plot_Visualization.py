@@ -177,8 +177,6 @@ if uploaded_file is not None:
                                         st.download_button(
                                             label="Download Image",
                                             data=file.read(),
-                                            file_name=f"image_{i + 1}.{image.format.lower()}",
-                                            mime=f"image/{image.format.lower()}",
                                             key=f"download_image_{i}",
                                         )
 
