@@ -6,6 +6,24 @@ https://github.com/user-attachments/assets/7e9cca45-8a4c-4dfa-98d2-2cef147422f2
 
 This project is aimed at producing a fully open-source, [**LlamaCloud**](https//cloud.llamaindex.ai)-backed alternative to NotebookLM.
 
+### Prerequisites
+
+This project uses `uv` to manage dependencies. Before you begin, make sure you have `uv` installed.
+
+On macOS and Linux:
+
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+On Windows:
+
+```
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+For more install options, see `uv`'s [official documentation](https://docs.astral.sh/uv/getting-started/installation/).
+
 ### Get it up and running!
 
 Get the GitHub repository:
