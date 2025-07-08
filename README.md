@@ -4,7 +4,7 @@
 
 https://github.com/user-attachments/assets/7e9cca45-8a4c-4dfa-98d2-2cef147422f2
 
-This project is aimed at producing a fully open-source, [**LlamaCloud**](https//:cloud.llamaindex.ai?utm_source=demo&utm_medium=notebookLM)-backed alternative to NotebookLM.
+This project is aimed at producing a fully open-source, [**LlamaCloud**](https://cloud.llamaindex.ai?utm_source=demo&utm_medium=notebookLM)-backed alternative to NotebookLM.
 
 ### Prerequisites
 
@@ -43,7 +43,7 @@ Modify the `.env.example` file with your API keys:
 
 - `OPENAI_API_KEY`: find it [on OpenAI Platform](https://platform.openai.com/api-keys)
 - `ELEVENLABS_API_KEY`: find it [on ElevenLabs Settings](https://elevenlabs.io/app/settings/api-keys)
-- `LLAMACLOUD_API_KEY`: find it [on LlamaCloud Dashboard](https//:cloud.llamaindex.ai?utm_source=demo&utm_medium=notebookLM)
+- `LLAMACLOUD_API_KEY`: find it [on LlamaCloud Dashboard](https://cloud.llamaindex.ai?utm_source=demo&utm_medium=notebookLM)
 
 Rename the file to `.env`:
 
