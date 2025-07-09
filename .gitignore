@@ -16,5 +16,8 @@ wheels/
 # env files
 .env
 
+# image files
+static/
+
 # audio files
 *.mp3
