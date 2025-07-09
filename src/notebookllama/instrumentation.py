@@ -37,7 +37,7 @@ class OtelTracesSqlEngine:
         limit: Optional[int] = None,
     ) -> Dict[str, Any]:
         url = "http://localhost:16686/api/traces"
-        params = {
+        params: Dict[str, Union[str, int]] = {
             "service": self.service_name,
             "start": start_time
             or int(time.time() * 1000000) - (24 * 60 * 60 * 1000000),
