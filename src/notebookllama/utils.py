@@ -1,17 +1,23 @@
 from dotenv import load_dotenv
+import pandas as pd
 import json
 import os
 import uuid
 import warnings
+import tempfile as tmp
+from datetime import datetime
 
+from mrkdwn_analysis import MarkdownAnalyzer
 from pydantic import BaseModel, Field, model_validator
 from llama_index.core.llms import ChatMessage
 from llama_cloud_services import LlamaExtract, LlamaParse
 from llama_cloud_services.extract import SourceText
 from llama_cloud.client import AsyncLlamaCloud
+from llama_index.core.query_engine import CitationQueryEngine
+from llama_index.core.base.response.schema import Response
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.llms.openai import OpenAIResponses
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional, Dict, cast
 from typing_extensions import Self
 from pyvis.network import Network
 
@@ -75,6 +81,24 @@ class MindMapCreationFailedWarning(Warning):
     """A warning returned if the mind map creation failed"""
 
 
+class ClaimVerification(BaseModel):
+    claim_is_true: bool = Field(
+        description="Based on the provided sources information, the claim passes or not."
+    )
+    supporting_citations: Optional[List[str]] = Field(
+        description="A minimum of one and a maximum of three citations from the sources supporting the claim. If the claim is not supported, please leave empty",
+        default=None,
+        min_length=1,
+        max_length=3,
+    )
+
+    @model_validator(mode="after")
+    def validate_claim_ver(self) -> Self:
+        if not self.claim_is_true and self.supporting_citations is not None:
+            self.supporting_citations = ["The claim was deemed false."]
+        return self
+
+
 if (
     os.getenv("LLAMACLOUD_API_KEY", None)
     and os.getenv("EXTRACT_AGENT_ID", None)
@@ -88,10 +112,100 @@ if (
     )
     PARSER = LlamaParse(api_key=os.getenv("LLAMACLOUD_API_KEY"), result_type="markdown")
     PIPELINE_ID = os.getenv("LLAMACLOUD_PIPELINE_ID")
-    QE = LlamaCloudIndex(
+    RETR = LlamaCloudIndex(
         api_key=os.getenv("LLAMACLOUD_API_KEY"), pipeline_id=PIPELINE_ID
-    ).as_query_engine(llm=LLM)
+    ).as_retriever()
+    QE = CitationQueryEngine(
+        retriever=RETR,
+        llm=LLM,
+        citation_chunk_size=256,
+        citation_chunk_overlap=50,
+    )
     LLM_STRUCT = LLM.as_structured_llm(MindMap)
+    LLM_VERIFIER = LLM.as_structured_llm(ClaimVerification)
+
+
+def md_table_to_pd_dataframe(md_table: Dict[str, list]) -> Optional[pd.DataFrame]:
+    try:
+        df = pd.DataFrame()
+        for i in range(len(md_table["header"])):
+            ls = [row[i] for row in md_table["rows"]]
+            df[md_table["header"][i]] = ls
+        return df
+    except Exception as e:
+        warnings.warn(f"Skipping table as an error occurred: {e}")
+        return None
+
+
+def rename_and_remove_past_images(path: str = "static/") -> List[str]:
+    renamed = []
+    if os.path.exists(path) and len(os.listdir(path)) >= 0:
+        for image_file in os.listdir(path):
+            image_path = os.path.join(path, image_file)
+            if os.path.isfile(image_path) and "_at_" not in image_path:
+                with open(image_path, "rb") as img:
+                    bts = img.read()
+                new_path = (
+                    os.path.splitext(image_path)[0].replace("_current", "")
+                    + f"_at_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.png"
+                )
+                with open(
+                    new_path,
+                    "wb",
+                ) as img_tw:
+                    img_tw.write(bts)
+                renamed.append(new_path)
+                os.remove(image_path)
+    return renamed
+
+
+def rename_and_remove_current_images(images: List[str]) -> List[str]:
+    imgs = []
+    for image in images:
+        with open(image, "rb") as rb:
+            bts = rb.read()
+        with open(os.path.splitext(image)[0] + "_current.png", "wb") as wb:
+            wb.write(bts)
+        imgs.append(os.path.splitext(image)[0] + "_current.png")
+        os.remove(image)
+    return imgs
+
+
+async def parse_file(
+    file_path: str, with_images: bool = False, with_tables: bool = False
+) -> Union[Tuple[Optional[str], Optional[List[str]], Optional[List[pd.DataFrame]]]]:
+    images: Optional[List[str]] = None
+    text: Optional[str] = None
+    tables: Optional[List[pd.DataFrame]] = None
+    document = await PARSER.aparse(file_path=file_path)
+    md_content = await document.aget_markdown_documents()
+    if len(md_content) != 0:
+        text = "\n\n---\n\n".join([doc.text for doc in md_content])
+    if with_images:
+        rename_and_remove_past_images()
+        imgs = await document.asave_all_images("static/")
+        images = rename_and_remove_current_images(imgs)
+    if with_tables:
+        if text is not None:
+            tmp_file = tmp.NamedTemporaryFile(
+                suffix=".md", delete=False, delete_on_close=False
+            )
+            with open(tmp_file.name, "w") as f:
+                f.write(text)
+            analyzer = MarkdownAnalyzer(tmp_file.name)
+            md_tables = analyzer.identify_tables()["Table"]
+            tables = []
+            for md_table in md_tables:
+                table = md_table_to_pd_dataframe(md_table=md_table)
+                if table is not None:
+                    tables.append(table)
+                    os.makedirs("data/extracted_tables/", exist_ok=True)
+                    table.to_csv(
+                        f"data/extracted_tables/table_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.csv",
+                        index=False,
+                    )
+        os.remove(tmp_file.name)
+    return text, images, tables
 
 
 async def process_file(
@@ -103,11 +217,9 @@ async def process_file(
     await CLIENT.pipelines.add_files_to_pipeline_api(
         pipeline_id=PIPELINE_ID, request=files
     )
-    document = await PARSER.aparse(file_path=filename)
-    md_content = await document.aget_markdown_documents()
-    if len(md_content) == 0:
+    text, _, _ = await parse_file(file_path=filename)
+    if text is None:
         return None, None
-    text = "\n\n---\n\n".join([md.text for md in md_content])
     extraction_output = await EXTRACT_AGENT.aextract(
         files=SourceText(text_content=text, filename=file.name)
     )
@@ -154,12 +266,40 @@ async def get_mind_map(summary: str, highlights: List[str]) -> Union[str, None]:
 
 async def query_index(question: str) -> Union[str, None]:
     response = await QE.aquery(question)
+    response = cast(Response, response)
+    sources = []
     if not response.response:
         return None
-    sources = [node.text for node in response.source_nodes]
+    if response.source_nodes is not None:
+        sources = [node.text for node in response.source_nodes]
     return (
         "## Answer\n\n"
         + response.response
         + "\n\n## Sources\n\n- "
         + "\n- ".join(sources)
     )
+
+
+async def get_plots_and_tables(
+    file_path: str,
+) -> Union[Tuple[Optional[List[str]], Optional[List[pd.DataFrame]]]]:
+    _, images, tables = await parse_file(
+        file_path=file_path, with_images=True, with_tables=True
+    )
+    return images, tables
+
+
+def verify_claim(
+    claim: str,
+    sources: str,
+) -> Tuple[bool, Optional[List[str]]]:
+    response = LLM_VERIFIER.chat(
+        [
+            ChatMessage(
+                role="user",
+                content=f"I have this claim: {claim} that is allegedgly supported by these sources:\n\n'''\n{sources}\n'''\n\nCan you please tell me whether or not this claim is thrutful and, if it is, identify one to three passages in the sources specifically supporting the claim?",
+            )
+        ]
+    )
+    response_json = json.loads(response.message.content)
+    return response_json["claim_is_true"], response_json["supporting_citations"]
