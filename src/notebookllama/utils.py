@@ -5,6 +5,7 @@ import os
 import uuid
 import warnings
 import tempfile as tmp
+from datetime import datetime
 
 from mrkdwn_analysis import MarkdownAnalyzer
 from pydantic import BaseModel, Field, model_validator
@@ -147,7 +148,26 @@ async def parse_file(
     if len(md_content) != 0:
         text = "\n\n---\n\n".join([doc.text for doc in md_content])
     if with_images:
-        images = await document.asave_all_images("./static/")
+        if os.path.exists("static/") and len(os.listdir("static/")) >= 0:
+            for image_file in os.listdir("static/"):
+                image_path = os.path.join("static/", image_file)
+                if os.path.isfile(image_path) and "_at_" not in image_path:
+                    with open(image_path, "rb") as img:
+                        bts = img.read()
+                    with open(
+                        os.path.splitext(image_path)[0].replace("_current", "")
+                        + f"_at_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.png",
+                        "wb",
+                    ) as img_tw:
+                        img_tw.write(bts)
+                    os.remove(image_path)
+        images = await document.asave_all_images("static/")
+        for image in images:
+            with open(image, "rb") as rb:
+                bts = rb.read()
+            with open(os.path.splitext(image)[0] + "_current.png", "wb") as wb:
+                wb.write(bts)
+            os.remove(image)
     if with_tables:
         if text is not None:
             tmp_file = tmp.NamedTemporaryFile(
@@ -162,6 +182,12 @@ async def parse_file(
                 table = md_table_to_pd_dataframe(md_table=md_table)
                 if table is not None:
                     tables.append(table)
+                    os.makedirs("data/extracted_tables/", exist_ok=True)
+                    table.to_csv(
+                        f"data/extracted_tables/table_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.csv",
+                        index=False,
+                    )
+        os.remove(tmp_file.name)
     return text, images, tables
 
 

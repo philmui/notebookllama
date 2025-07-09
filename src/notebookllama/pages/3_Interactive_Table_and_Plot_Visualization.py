@@ -42,38 +42,6 @@ def get_plots_and_tables_sync(file: io.BytesIO):
         return loop.run_until_complete(get_plots_and_tables(file_path=fl.name))
 
 
-def cleanup_temp_files(image_paths):
-    """Clean up temporary image files"""
-    for img_path in image_paths:
-        try:
-            if os.path.exists(img_path):
-                os.remove(img_path)
-        except Exception as e:
-            st.warning(f"Could not remove {img_path}: {str(e)}")
-
-
-def create_download_zip(dataframes, image_paths):
-    """Create a ZIP file with all extracted data"""
-    import zipfile
-
-    zip_buffer = io.BytesIO()
-
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        # Add CSV files
-        for i, df in enumerate(dataframes):
-            csv_data = df.to_csv(index=False)
-            zip_file.writestr(f"table_{i + 1}.csv", csv_data)
-
-        # Add image files
-        for i, img_path in enumerate(image_paths):
-            if os.path.exists(img_path):
-                file_ext = os.path.splitext(img_path)[1]
-                zip_file.write(img_path, f"image_{i + 1}{file_ext}")
-
-    zip_buffer.seek(0)
-    return zip_buffer.getvalue()
-
-
 # Direct Streamlit execution
 # Chat Interface
 st.set_page_config(page_title="NotebookLlaMa - Images and Tables", page_icon="📊")
@@ -99,7 +67,9 @@ if uploaded_file is not None:
 
             # Display results summary
             st.success("✅ Processing complete!")
-            st.info(f"Found {len(image_paths)} images and {len(dataframes)} tables")
+            st.info(
+                f"Found {len(image_paths)} images and {len(dataframes)} tables.\nImages can be seen in the `static/` folder, tables in the `data/extracted_tables` folder."
+            )
 
             # Create tabs for better organization
             tab1, tab2 = st.tabs(["📊 Tables", "📈 Plots/Images"])
@@ -120,16 +90,6 @@ if uploaded_file is not None:
                             st.write("**Table Info:**")
                             st.write(f"Rows: {len(df)}")
                             st.write(f"Columns: {len(df.columns)}")
-
-                            # Download button for CSV
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="Download CSV",
-                                data=csv,
-                                file_name=f"table_{i + 1}.csv",
-                                mime="text/csv",
-                                key=f"download_table_{i}",
-                            )
 
                         # Show additional table statistics
                         with st.expander(f"Table {i + 1} Details"):
@@ -172,14 +132,6 @@ if uploaded_file is not None:
                                     st.write(f"Format: {image.format}")
                                     st.write(f"Mode: {image.mode}")
 
-                                    # Download button for image
-                                    with open(img_path, "rb") as file:
-                                        st.download_button(
-                                            label="Download Image",
-                                            data=file.read(),
-                                            key=f"download_image_{i}",
-                                        )
-
                                 st.divider()
                             else:
                                 st.error(f"Image file not found: {img_path}")
@@ -188,26 +140,6 @@ if uploaded_file is not None:
                             st.error(f"Error loading image {i + 1}: {str(e)}")
                 else:
                     st.warning("No images found in the PDF")
-
-            # Cleanup section
-            st.header("📂 File Management")
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.button("🗑️ Clean up temporary files"):
-                    cleanup_temp_files(image_paths)
-                    st.success("Temporary files cleaned up!")
-
-            with col2:
-                # Option to download all data as ZIP
-                if st.button("📦 Download All Data"):
-                    zip_data = create_download_zip(dataframes, image_paths)
-                    st.download_button(
-                        label="Download ZIP",
-                        data=zip_data,
-                        file_name="extracted_data.zip",
-                        mime="application/zip",
-                    )
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")

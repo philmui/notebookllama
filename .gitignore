@@ -21,3 +21,4 @@ wheels/
 
 # auto-generated images
 static/
+data/extracted_tables/
