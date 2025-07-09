@@ -82,7 +82,7 @@ streamlit run src/notebookllama/Home.py
 >
 > _You might need to install `ffmpeg` if you do not have it installed already_
 
-And start exploring the app at `http://localhost:8751/`.
+And start exploring the app at `http://localhost:8501/`.
 
 ### Contributing
 
