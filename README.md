@@ -51,6 +51,18 @@ Rename the file to `.env`:
 mv .env.example .env
 ```
 
+Activate the virtual environment 
+(on Windows):
+
+```bash
+.\.venv\Scripts\activate
+```
+
+(on mac/unix)
+```bash
+source .venv/bin/activate
+```
+
 Now, you will have to execute the following scripts:
 
 ```bash
