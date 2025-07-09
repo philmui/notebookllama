@@ -78,6 +78,7 @@ def main():
 
     if app1.title == "With Default Settings":
         default(client=client)
+        return 0
     else:
         app2 = SelectEmbeddingApp()
         app2.run()
