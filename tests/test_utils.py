@@ -38,7 +38,7 @@ def markdown_file() -> str:
 
 @pytest.fixture()
 def images_dir() -> str:
-    return "data/test/static/"
+    return "data/test/images/"
 
 
 @pytest.fixture()
