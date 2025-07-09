@@ -1,0 +1,19 @@
+Screen {
+    align: center top;
+}
+
+Label {
+    align: center top;
+    content-align: center middle;
+    width: 100%;
+}
+
+#label1 {
+    color: rgb(83, 200, 0)
+}
+
+Input {
+    align: center middle;
+    width: 80;
+    margin: 2;
+}
