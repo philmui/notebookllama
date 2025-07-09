@@ -231,7 +231,12 @@ class OtherEmbeddingApp(App):
             id="api_key",
             name="api_key",
         )
-        yield Input(placeholder="Model name", type="text", id="model", name="model")
+        yield Input(
+            placeholder="Model name (or Endpoint URL for HF)",
+            type="text",
+            id="model",
+            name="model",
+        )
         yield Footer()
 
     def action_toggle_dark(self) -> None:
