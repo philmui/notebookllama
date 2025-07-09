@@ -7,7 +7,13 @@ from mrkdwn_analysis import MarkdownAnalyzer
 
 from typing import Callable
 from pydantic import ValidationError
-from src.notebookllama.utils import process_file, get_mind_map, md_table_to_pd_dataframe
+from src.notebookllama.utils import (
+    process_file,
+    get_mind_map,
+    md_table_to_pd_dataframe,
+    rename_and_remove_current_images,
+    rename_and_remove_past_images,
+)
 from src.notebookllama.models import Notebook
 
 load_dotenv()
@@ -28,6 +34,11 @@ def input_file() -> str:
 @pytest.fixture()
 def markdown_file() -> str:
     return "data/test/md_sample.md"
+
+
+@pytest.fixture()
+def images_dir() -> str:
+    return "data/test/static/"
 
 
 @pytest.fixture()
@@ -159,3 +170,20 @@ def test_table_to_dataframe(
         df = md_table_to_pd_dataframe(md_table)
         assert df is not None
         assert df.equals(dataframe_from_tables)
+
+
+def test_images_renaming(images_dir: str):
+    images = [os.path.join(images_dir, f) for f in os.listdir(images_dir)]
+    imgs = rename_and_remove_current_images(images)
+    assert all("_current" in img for img in imgs)
+    assert all(os.path.exists(img) for img in imgs)
+    renamed = rename_and_remove_past_images(images_dir)
+    assert all("_at_" in img for img in renamed)
+    assert all("_current" not in img for img in renamed)
+    assert all(os.path.exists(img) for img in renamed)
+    for image in renamed:
+        with open(image, "rb") as rb:
+            bts = rb.read()
+        with open(images_dir + "image.png", "wb") as wb:
+            wb.write(bts)
+        os.remove(image)

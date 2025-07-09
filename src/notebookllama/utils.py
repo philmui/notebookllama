@@ -137,6 +137,40 @@ def md_table_to_pd_dataframe(md_table: Dict[str, list]) -> Optional[pd.DataFrame
         return None
 
 
+def rename_and_remove_past_images(path: str = "static/") -> List[str]:
+    renamed = []
+    if os.path.exists(path) and len(os.listdir(path)) >= 0:
+        for image_file in os.listdir(path):
+            image_path = os.path.join(path, image_file)
+            if os.path.isfile(image_path) and "_at_" not in image_path:
+                with open(image_path, "rb") as img:
+                    bts = img.read()
+                new_path = (
+                    os.path.splitext(image_path)[0].replace("_current", "")
+                    + f"_at_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.png"
+                )
+                with open(
+                    new_path,
+                    "wb",
+                ) as img_tw:
+                    img_tw.write(bts)
+                renamed.append(new_path)
+                os.remove(image_path)
+    return renamed
+
+
+def rename_and_remove_current_images(images: List[str]) -> List[str]:
+    imgs = []
+    for image in images:
+        with open(image, "rb") as rb:
+            bts = rb.read()
+        with open(os.path.splitext(image)[0] + "_current.png", "wb") as wb:
+            wb.write(bts)
+        imgs.append(os.path.splitext(image)[0] + "_current.png")
+        os.remove(image)
+    return imgs
+
+
 async def parse_file(
     file_path: str, with_images: bool = False, with_tables: bool = False
 ) -> Union[Tuple[Optional[str], Optional[List[str]], Optional[List[pd.DataFrame]]]]:
@@ -148,26 +182,9 @@ async def parse_file(
     if len(md_content) != 0:
         text = "\n\n---\n\n".join([doc.text for doc in md_content])
     if with_images:
-        if os.path.exists("static/") and len(os.listdir("static/")) >= 0:
-            for image_file in os.listdir("static/"):
-                image_path = os.path.join("static/", image_file)
-                if os.path.isfile(image_path) and "_at_" not in image_path:
-                    with open(image_path, "rb") as img:
-                        bts = img.read()
-                    with open(
-                        os.path.splitext(image_path)[0].replace("_current", "")
-                        + f"_at_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.png",
-                        "wb",
-                    ) as img_tw:
-                        img_tw.write(bts)
-                    os.remove(image_path)
-        images = await document.asave_all_images("static/")
-        for image in images:
-            with open(image, "rb") as rb:
-                bts = rb.read()
-            with open(os.path.splitext(image)[0] + "_current.png", "wb") as wb:
-                wb.write(bts)
-            os.remove(image)
+        rename_and_remove_past_images()
+        imgs = await document.asave_all_images("static/")
+        images = rename_and_remove_current_images(imgs)
     if with_tables:
         if text is not None:
             tmp_file = tmp.NamedTemporaryFile(
