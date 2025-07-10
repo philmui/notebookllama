@@ -30,7 +30,7 @@ class ProviderSelectScreen(BaseScreen):
 
     @on(Select.Changed, "#provider_select")
     def handle_selection(self, event: Select.Changed) -> None:
-        from ..app import EmbeddingSetupApp
+        from ..embedding_app import EmbeddingSetupApp
 
         app = self.app
         if isinstance(app, EmbeddingSetupApp):
@@ -38,7 +38,7 @@ class ProviderSelectScreen(BaseScreen):
             self.handle_next()
 
     def handle_next(self) -> None:
-        from ..app import EmbeddingSetupApp
+        from ..embedding_app import EmbeddingSetupApp
         from .providers.openai import OpenAIEmbeddingScreen
 
         app = self.app

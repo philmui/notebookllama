@@ -30,7 +30,7 @@ class BaseScreen(Screen):
     def get_title(self) -> str:
         return "Base Screen"
 
-    def get_form_elements(self) -> list:
+    def get_form_elements(self) -> list[ComposeResult]:
         return []
 
 

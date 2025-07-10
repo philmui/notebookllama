@@ -25,7 +25,7 @@ class InitialScreen(BaseScreen):
 
     @on(Select.Changed, "#setup_type")
     def handle_selection(self, event: Select.Changed) -> None:
-        from ..app import EmbeddingSetupApp
+        from ..embedding_app import EmbeddingSetupApp
 
         app = self.app
         if isinstance(app, EmbeddingSetupApp):
@@ -33,7 +33,7 @@ class InitialScreen(BaseScreen):
             self.handle_next()
 
     def handle_next(self) -> None:
-        from ..app import EmbeddingSetupApp
+        from ..embedding_app import EmbeddingSetupApp
         from .provider import ProviderSelectScreen
 
         app = self.app
