@@ -28,7 +28,6 @@ class ProviderSelectScreen(BaseScreen):
                     ("HuggingFace", "HuggingFace"),
                     ("Azure", "Azure"),
                     ("Gemini", "Gemini"),
-                    ("Other", "Other"),
                 ],
                 prompt="Please select an embedding provider",
                 classes="form-control",
