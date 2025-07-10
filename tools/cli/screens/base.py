@@ -13,7 +13,7 @@ class BaseScreen(Screen):
 
     def action_toggle_dark(self) -> None:
         self.app.theme = (
-            "textual-dark" if self.app.theme != "textual-light" else "textual-light"
+            "textual-dark" if self.app.theme == "textual-light" else "textual-light"
         )
 
     def action_quit(self) -> None:
