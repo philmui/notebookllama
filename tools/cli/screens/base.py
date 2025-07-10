@@ -40,7 +40,7 @@ class BaseScreen(Screen):
 class ConfigurationScreen(BaseScreen):
     """Base screen provider configuration with submit functionality."""
 
-    BINDINGS = [
+    BINDINGS = BaseScreen.BINDINGS + [
         Binding("shift+enter", "submit", "Submit"),
     ]
 
