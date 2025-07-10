@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from cli.utils import EmbeddingSetupApp
+from cli.app import EmbeddingSetupApp
 
 from llama_cloud import (
     PipelineCreateEmbeddingConfig_OpenaiEmbedding,
