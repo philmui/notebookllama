@@ -34,7 +34,7 @@ class InitialScreen(BaseScreen):
 
     def handle_next(self) -> None:
         from ..embedding_app import EmbeddingSetupApp
-        from .provider import ProviderSelectScreen
+        from .embedding_provider import ProviderSelectScreen
 
         app = self.app
         if isinstance(app, EmbeddingSetupApp):

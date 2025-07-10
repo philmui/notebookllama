@@ -2,6 +2,14 @@ from textual import on
 from textual.widgets import Select
 
 from .base import BaseScreen
+from .embedding_providers import (
+    OpenAIEmbeddingScreen,
+    BedrockEmbeddingScreen,
+    AzureEmbeddingScreen,
+    GeminiEmbeddingScreen,
+    CohereEmbeddingScreen,
+    HuggingFaceEmbeddingScreen,
+)
 
 
 class ProviderSelectScreen(BaseScreen):
@@ -39,13 +47,16 @@ class ProviderSelectScreen(BaseScreen):
 
     def handle_next(self) -> None:
         from ..embedding_app import EmbeddingSetupApp
-        from .providers.openai import OpenAIEmbeddingScreen
 
         app = self.app
         if isinstance(app, EmbeddingSetupApp):
             provider_screens = {
-                "OpenAI": OpenAIEmbeddingScreen
-                # Add other providers as they're implemented
+                "OpenAI": OpenAIEmbeddingScreen,
+                "Bedrock": BedrockEmbeddingScreen,
+                "Azure": AzureEmbeddingScreen,
+                "Gemini": GeminiEmbeddingScreen,
+                "Cohere": CohereEmbeddingScreen,
+                "HuggingFace": HuggingFaceEmbeddingScreen,
             }
             screen_class = provider_screens.get(app.config.provider)
             if screen_class:

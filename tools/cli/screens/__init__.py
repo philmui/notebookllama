@@ -1,12 +1,5 @@
 from .base import BaseScreen, ConfigurationScreen
 from .initial import InitialScreen
-from .provider import ProviderSelectScreen
-from .providers.openai import OpenAIEmbeddingScreen
+from .embedding_provider import ProviderSelectScreen
 
-__all__ = [
-    "BaseScreen",
-    "ConfigurationScreen",
-    "InitialScreen",
-    "ProviderSelectScreen",
-    "OpenAIEmbeddingScreen",
-]
+__all__ = ["BaseScreen", "ConfigurationScreen", "InitialScreen", "ProviderSelectScreen"]
