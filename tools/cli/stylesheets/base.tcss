@@ -2,18 +2,24 @@ Screen {
     align: center top;
 }
 
-Label {
+.form-title {
     align: center top;
     content-align: center middle;
     width: 100%;
+    color: rgb(83, 200, 0);
 }
 
-#label1 {
-    color: rgb(83, 200, 0)
+.form-control {
+    align: center middle;
+    margin: 2;
 }
 
 Input {
-    align: center middle;
     width: 80;
+    margin: 2;
+}
+
+Select {
+    width: 60;
     margin: 2;
 }
