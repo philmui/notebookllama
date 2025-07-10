@@ -1,5 +1,6 @@
 Screen {
     align: center top;
+    padding: 1 4;
 }
 
 .form-title {
@@ -7,19 +8,17 @@ Screen {
     content-align: center middle;
     width: 100%;
     color: rgb(83, 200, 0);
+    padding: 1;
 }
 
 .form-control {
     align: center middle;
-    margin: 2;
+    width: 100%;
+    height: auto;
+    margin: 1;
 }
 
-Input {
+Input, Select {
     width: 80;
-    margin: 2;
-}
-
-Select {
-    width: 60;
-    margin: 2;
+    margin: 1;
 }

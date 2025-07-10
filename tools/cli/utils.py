@@ -5,7 +5,8 @@ from textual.widgets import Select, Input, Label, Footer
 
 
 class BaseEmbeddingApp(App):
-    CSS_PATH = "stylesheets/input.tcss"
+    CSS_PATH = "stylesheets/base.tcss"
+
     BINDINGS = [
         Binding(
             key="ctrl+q", action="quit", description="Submit", key_display="ctrl+q"
@@ -41,13 +42,14 @@ class BaseEmbeddingApp(App):
 
 class DefaultOrCustomApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("How do you wish to proceed?", id="label1")
+        yield Label("How do you wish to proceed?", classes="form-title")
         yield Select(
             options=[
                 ("With Default Settings", "With Default Settings"),
                 ("With Custom Settings", "With Custom Settings"),
             ],
             prompt="Please select one of the following",
+            classes="form-control",
         )
         yield Footer()
 
@@ -58,7 +60,7 @@ class DefaultOrCustomApp(BaseEmbeddingApp):
 
 class SelectEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Embedding Model Selection", id="label1")
+        yield Label("Embedding Model Selection", classes="form-title")
         yield Select(
             options=[
                 ("OpenAI", "OpenAI"),
@@ -69,6 +71,7 @@ class SelectEmbeddingApp(BaseEmbeddingApp):
                 ("Azure", "Azure"),
             ],
             prompt="Select the embedding model for your LlamaCloud Index",
+            classes="form-control",
         )
         yield Footer()
 
@@ -79,10 +82,16 @@ class SelectEmbeddingApp(BaseEmbeddingApp):
 
 class BedrockEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
-        yield Input(placeholder="AWS Region", type="text", id="region")
+        yield Label("Model and API key", classes="form-title")
         yield Input(
-            placeholder="AWS Secret Access Key", type="text", password=True, id="key_id"
+            placeholder="AWS Region", type="text", id="region", classes="form-control"
+        )
+        yield Input(
+            placeholder="AWS Secret Access Key",
+            type="text",
+            password=True,
+            id="key_id",
+            classes="form-control",
         )
         yield Footer()
 
@@ -92,9 +101,17 @@ class BedrockEmbeddingApp(BaseEmbeddingApp):
 
 class HuggingFaceEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
-        yield Input(placeholder="API key", type="text", password=True, id="api_key")
-        yield Input(placeholder="Model", type="text", id="model")
+        yield Label("Model and API key", classes="form-title")
+        yield Input(
+            placeholder="API key",
+            type="text",
+            password=True,
+            id="api_key",
+            classes="form-control",
+        )
+        yield Input(
+            placeholder="Model", type="text", id="model", classes="form-control"
+        )
         yield Footer()
 
     def get_input_ids(self) -> list[str]:
@@ -103,9 +120,17 @@ class HuggingFaceEmbeddingApp(BaseEmbeddingApp):
 
 class OpenAIEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
-        yield Input(placeholder="API key", type="text", password=True, id="api_key")
-        yield Input(placeholder="Model", type="text", id="model")
+        yield Label("Model and API key", classes="form-title")
+        yield Input(
+            placeholder="API key",
+            type="text",
+            password=True,
+            id="api_key",
+            classes="form-control",
+        )
+        yield Input(
+            placeholder="Model", type="text", id="model", classes="form-control"
+        )
         yield Footer()
 
     def get_input_ids(self) -> list[str]:
@@ -114,9 +139,17 @@ class OpenAIEmbeddingApp(BaseEmbeddingApp):
 
 class CohereEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
-        yield Input(placeholder="API key", type="text", password=True, id="api_key")
-        yield Input(placeholder="Model", type="text", id="model")
+        yield Label("Model and API key", classes="form-title")
+        yield Input(
+            placeholder="API key",
+            type="text",
+            password=True,
+            id="api_key",
+            classes="form-control",
+        )
+        yield Input(
+            placeholder="Model", type="text", id="model", classes="form-control"
+        )
         yield Footer()
 
     def get_input_ids(self) -> list[str]:
@@ -125,9 +158,17 @@ class CohereEmbeddingApp(BaseEmbeddingApp):
 
 class AzureEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
-        yield Input(placeholder="API key", type="text", password=True, id="api_key")
-        yield Input(placeholder="Endpoint", type="text", id="target_uri")
+        yield Label("Model and API key", classes="form-title")
+        yield Input(
+            placeholder="API key",
+            type="text",
+            password=True,
+            id="api_key",
+            classes="form-control",
+        )
+        yield Input(
+            placeholder="Endpoint", type="text", id="target_uri", classes="form-control"
+        )
         yield Footer()
 
     def get_input_ids(self) -> list[str]:
@@ -136,13 +177,14 @@ class AzureEmbeddingApp(BaseEmbeddingApp):
 
 class GeminiEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
+        yield Label("Model and API key", classes="form-title")
         yield Input(
             placeholder="API key",
             type="text",
             password=True,
             id="api_key",
             name="api_key",
+            classes="form-control",
         )
         yield Footer()
 
@@ -152,19 +194,21 @@ class GeminiEmbeddingApp(BaseEmbeddingApp):
 
 class OtherEmbeddingApp(BaseEmbeddingApp):
     def compose(self) -> ComposeResult:
-        yield Label("Model and API key", id="label1")
+        yield Label("Model and API key", classes="form-title")
         yield Input(
             placeholder="API key",
             type="text",
             password=True,
             id="api_key",
             name="api_key",
+            classes="form-control",
         )
         yield Input(
             placeholder="Model name (or Endpoint URL for HF)",
             type="text",
             id="model",
             name="model",
+            classes="form-control",
         )
 
         yield Footer()
