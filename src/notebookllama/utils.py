@@ -24,6 +24,7 @@ from pyvis.network import Network
 
 load_dotenv()
 
+
 class MarkdownTextAnalyzer(MarkdownAnalyzer):
     @override
     def __init__(self, text: str):
@@ -32,9 +33,11 @@ class MarkdownTextAnalyzer(MarkdownAnalyzer):
         self.tokens = parser.parse()
         self.references = parser.references
         self.footnotes = parser.footnotes
-        self.inline_parser = InlineParser(references=self.references, footnotes=self.footnotes)
+        self.inline_parser = InlineParser(
+            references=self.references, footnotes=self.footnotes
+        )
         self._parse_inline_tokens()
-        
+
 
 class Node(BaseModel):
     id: str

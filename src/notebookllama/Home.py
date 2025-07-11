@@ -43,6 +43,7 @@ def read_html_file(file_path: str) -> str:
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
+
 async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
     # Create temp file with proper Windows handling
     with temp.NamedTemporaryFile(suffix=".pdf", delete=False) as fl:
@@ -50,17 +51,17 @@ async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
         fl.write(content)
         fl.flush()  # Ensure data is written
         temp_path = fl.name
-    
+
     try:
         st_time = int(time.time() * 1000000)
         ev = FileInputEvent(file=temp_path)
         result: NotebookOutputEvent = await WF.run(start_event=ev)
-        
+
         q_and_a = ""
         for q, a in zip(result.questions, result.answers):
             q_and_a += f"**{q}**\n\n{a}\n\n"
         bullet_points = "## Bullet Points\n\n- " + "\n- ".join(result.highlights)
-        
+
         mind_map = result.mind_map
         if Path(mind_map).is_file():
             mind_map = read_html_file(mind_map)
@@ -68,11 +69,11 @@ async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
                 os.remove(result.mind_map)
             except OSError:
                 pass  # File might be locked on Windows
-        
+
         end_time = int(time.time() * 1000000)
         sql_engine.to_sql_database(start_time=st_time, end_time=end_time)
         return result.md_content, result.summary, q_and_a, bullet_points, mind_map
-    
+
     finally:
         try:
             os.remove(temp_path)
@@ -83,6 +84,7 @@ async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
             except OSError:
                 pass  # Give up if still locked
 
+
 def sync_run_workflow(file: io.BytesIO):
     try:
         # Try to use existing event loop
@@ -90,6 +92,7 @@ def sync_run_workflow(file: io.BytesIO):
         if loop.is_running():
             # If loop is already running, schedule the coroutine
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, run_workflow(file))
                 return future.result()
@@ -97,7 +100,7 @@ def sync_run_workflow(file: io.BytesIO):
             return loop.run_until_complete(run_workflow(file))
     except RuntimeError:
         # No event loop exists, create one
-        if sys.platform == 'win32':
+        if sys.platform == "win32":
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
         return asyncio.run(run_workflow(file))
 

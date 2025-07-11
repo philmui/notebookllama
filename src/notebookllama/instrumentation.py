@@ -47,7 +47,7 @@ class OtelTracesSqlEngine:
 
     def _to_pandas(self, data: Dict[str, Any]) -> pd.DataFrame:
         rows: List[Dict[str, Any]] = []
-        
+
         # Loop over each trace
         for trace in data.get("data", []):
             trace_id = trace.get("traceID")
@@ -55,7 +55,7 @@ class OtelTracesSqlEngine:
                 pid: proc.get("serviceName")
                 for pid, proc in trace.get("processes", {}).items()
             }
-            
+
             for span in trace.get("spans", []):
                 span_id = span.get("spanID")
                 operation = span.get("operationName")
@@ -74,7 +74,7 @@ class OtelTracesSqlEngine:
                 parent_span_id = None
                 if span.get("references"):
                     parent_span_id = span["references"][0].get("spanID")
-                    
+
                 rows.append(
                     {
                         "trace_id": trace_id,
@@ -87,7 +87,7 @@ class OtelTracesSqlEngine:
                         "service_name": service,
                     }
                 )
-        
+
         return pd.DataFrame(rows)
 
     def _to_sql(
