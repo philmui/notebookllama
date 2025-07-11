@@ -1,6 +1,6 @@
 # NotebookLlaMa🦙
 
-### A fluffy and open-source alternative to NotebookLM!
+## A fluffy and open-source alternative to NotebookLM!
 
 https://github.com/user-attachments/assets/7e9cca45-8a4c-4dfa-98d2-2cef147422f2
 
