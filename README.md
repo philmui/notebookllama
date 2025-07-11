@@ -2,6 +2,13 @@
 
 ## A fluffy and open-source alternative to NotebookLM!
 
+> [!IMPORTANT]
+>
+> `[07-11-2025]`
+> 
+> _For **Windows** users: we are currently investigating a series of issues related to the Windows OS. Please refrain from reporting issues until we come back with a fix._
+
+
 https://github.com/user-attachments/assets/7e9cca45-8a4c-4dfa-98d2-2cef147422f2
 
 <p align="center">
