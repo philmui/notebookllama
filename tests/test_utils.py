@@ -3,7 +3,6 @@ import os
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
-from mrkdwn_analysis import MarkdownAnalyzer
 
 from typing import Callable
 from pydantic import ValidationError
@@ -13,6 +12,7 @@ from src.notebookllama.utils import (
     md_table_to_pd_dataframe,
     rename_and_remove_current_images,
     rename_and_remove_past_images,
+    MarkdownTextAnalyzer,
 )
 from src.notebookllama.models import Notebook
 
@@ -80,16 +80,16 @@ def dataframe_from_tables() -> pd.DataFrame:
 
 
 @pytest.fixture()
-def file_exists_fn() -> Callable[[os.PathLike[str]], bool]:
-    def file_exists(file_path: os.PathLike[str]) -> bool:
+def file_exists_fn() -> Callable[[str], bool]:
+    def file_exists(file_path: str) -> bool:
         return Path(file_path).exists()
 
     return file_exists
 
 
 @pytest.fixture()
-def is_not_empty_fn() -> Callable[[os.PathLike[str]], bool]:
-    def is_not_empty(file_path: os.PathLike[str]) -> bool:
+def is_not_empty_fn() -> Callable[[str], bool]:
+    def is_not_empty(file_path: str) -> bool:
         return Path(file_path).stat().st_size > 0
 
     return is_not_empty
@@ -131,8 +131,8 @@ def notebook_to_process() -> Notebook:
 @pytest.mark.asyncio
 async def test_mind_map_creation(
     notebook_to_process: Notebook,
-    file_exists_fn: Callable[[os.PathLike[str]], bool],
-    is_not_empty_fn: Callable[[os.PathLike[str]], bool],
+    file_exists_fn: Callable[[str], bool],
+    is_not_empty_fn: Callable[[str], bool],
 ):
     test_mindmap = await get_mind_map(
         summary=notebook_to_process.summary, highlights=notebook_to_process.highlights
@@ -163,7 +163,9 @@ async def test_file_processing(input_file: str) -> None:
 def test_table_to_dataframe(
     markdown_file: str, dataframe_from_tables: pd.DataFrame
 ) -> None:
-    analyzer = MarkdownAnalyzer(markdown_file)
+    with open(markdown_file, "r") as f:
+        text = f.read()
+    analyzer = MarkdownTextAnalyzer(text)
     md_tables = analyzer.identify_tables()["Table"]
     assert len(md_tables) == 2
     for md_table in md_tables:

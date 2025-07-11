@@ -4,10 +4,10 @@ import json
 import os
 import uuid
 import warnings
-import tempfile as tmp
 from datetime import datetime
 
 from mrkdwn_analysis import MarkdownAnalyzer
+from mrkdwn_analysis.markdown_analyzer import InlineParser, MarkdownParser
 from pydantic import BaseModel, Field, model_validator
 from llama_index.core.llms import ChatMessage
 from llama_cloud_services import LlamaExtract, LlamaParse
@@ -17,12 +17,24 @@ from llama_index.core.query_engine import CitationQueryEngine
 from llama_index.core.base.response.schema import Response
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 from llama_index.llms.openai import OpenAIResponses
+from typing_extensions import override
 from typing import List, Tuple, Union, Optional, Dict, cast
 from typing_extensions import Self
 from pyvis.network import Network
 
 load_dotenv()
 
+class MarkdownTextAnalyzer(MarkdownAnalyzer):
+    @override
+    def __init__(self, text: str):
+        self.text = text
+        parser = MarkdownParser(self.text)
+        self.tokens = parser.parse()
+        self.references = parser.references
+        self.footnotes = parser.footnotes
+        self.inline_parser = InlineParser(references=self.references, footnotes=self.footnotes)
+        self._parse_inline_tokens()
+        
 
 class Node(BaseModel):
     id: str
@@ -187,12 +199,7 @@ async def parse_file(
         images = rename_and_remove_current_images(imgs)
     if with_tables:
         if text is not None:
-            tmp_file = tmp.NamedTemporaryFile(
-                suffix=".md", delete=False, delete_on_close=False
-            )
-            with open(tmp_file.name, "w") as f:
-                f.write(text)
-            analyzer = MarkdownAnalyzer(tmp_file.name)
+            analyzer = MarkdownTextAnalyzer(text)
             md_tables = analyzer.identify_tables()["Table"]
             tables = []
             for md_table in md_tables:
@@ -204,7 +211,6 @@ async def parse_file(
                         f"data/extracted_tables/table_{datetime.now().strftime('%Y_%d_%m_%H_%M_%S_%f')[:-3]}.csv",
                         index=False,
                     )
-        os.remove(tmp_file.name)
     return text, images, tables
 
 

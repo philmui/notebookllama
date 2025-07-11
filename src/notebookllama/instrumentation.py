@@ -1,9 +1,6 @@
 import requests
 import time
-import csv
 import pandas as pd
-import tempfile as temp
-import os
 
 from sqlalchemy import Engine, create_engine, Connection, Result
 from typing import Optional, Dict, Any, List, Literal, Union, cast
@@ -50,6 +47,7 @@ class OtelTracesSqlEngine:
 
     def _to_pandas(self, data: Dict[str, Any]) -> pd.DataFrame:
         rows: List[Dict[str, Any]] = []
+        
         # Loop over each trace
         for trace in data.get("data", []):
             trace_id = trace.get("traceID")
@@ -57,7 +55,7 @@ class OtelTracesSqlEngine:
                 pid: proc.get("serviceName")
                 for pid, proc in trace.get("processes", {}).items()
             }
-
+            
             for span in trace.get("spans", []):
                 span_id = span.get("spanID")
                 operation = span.get("operationName")
@@ -76,7 +74,7 @@ class OtelTracesSqlEngine:
                 parent_span_id = None
                 if span.get("references"):
                     parent_span_id = span["references"][0].get("spanID")
-
+                    
                 rows.append(
                     {
                         "trace_id": trace_id,
@@ -89,29 +87,8 @@ class OtelTracesSqlEngine:
                         "service_name": service,
                     }
                 )
-
-        # Define the CSV header
-        fieldnames = [
-            "trace_id",
-            "span_id",
-            "parent_span_id",
-            "operation_name",
-            "start_time",
-            "duration",
-            "status_code",
-            "service_name",
-        ]
-
-        fl = temp.NamedTemporaryFile(suffix=".csv", delete=False, delete_on_close=False)
-        # Write to CSV
-        with open(fl.name, "w", newline="") as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
-
-        df = pd.read_csv(fl)
-        os.remove(fl.name)
-        return df
+        
+        return pd.DataFrame(rows)
 
     def _to_sql(
         self,
