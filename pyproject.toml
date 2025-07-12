@@ -1,6 +1,6 @@
 [project]
 name = "notebookllama"
-version = "0.3.0"
+version = "0.3.1"
 description = "An OSS and LlamaCloud-backed alternative to NotebookLM"
 readme = "README.md"
 requires-python = ">=3.13"

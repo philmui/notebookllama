@@ -14,8 +14,8 @@ class InitialScreen(BaseScreen):
         return [
             Select(
                 options=[
-                    ("With Default Settings", "With Default Settings"),
-                    ("With Custom Settings", "With Custom Settings"),
+                    ("With Default Settings", "default_settings"),
+                    ("With Custom Settings", "custom_settings"),
                 ],
                 prompt="Please select one of the following",
                 id="setup_type",
@@ -38,7 +38,7 @@ class InitialScreen(BaseScreen):
 
         app = self.app
         if isinstance(app, EmbeddingSetupApp):
-            if app.config.setup_type == "With Default Settings":
+            if app.config.setup_type == "default_settings":
                 app.handle_default_setup()
             else:
                 app.push_screen(ProviderSelectScreen())
