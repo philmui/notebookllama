@@ -6,6 +6,7 @@ from src.notebookllama.models import (
 from src.notebookllama.verifying import ClaimVerification
 from src.notebookllama.mindmap import MindMap, Node, Edge
 from src.notebookllama.audio import MultiTurnConversation, ConversationTurn
+from src.notebookllama.documents import ManagedDocument
 from pydantic import ValidationError
 
 
@@ -170,4 +171,39 @@ def test_claim_verification() -> None:
         ClaimVerification(
             claim_is_true=True,
             supporting_citations=["Support 1", "Support 2", "Support 3", "Support 4"],
+        )
+
+
+def test_managed_documents() -> None:
+    d1 = ManagedDocument(
+        document_name="Hello World",
+        content="This is a test",
+        summary="Test",
+        q_and_a="Hello? World.",
+        mindmap="Hello -> World",
+        bullet_points=". Hello, . World",
+    )
+    assert d1.document_name == "Hello World"
+    assert d1.content == "This is a test"
+    assert d1.summary == "Test"
+    assert d1.q_and_a == "Hello? World."
+    assert d1.mindmap == "Hello -> World"
+    assert d1.bullet_points == ". Hello, . World"
+    d2 = ManagedDocument(
+        document_name="Hello World",
+        content="This is a test",
+        summary="Test's child",
+        q_and_a="Hello? World.",
+        mindmap="Hello -> World",
+        bullet_points=". Hello, . World",
+    )
+    assert d2.summary == "Test''s child"
+    with pytest.raises(ValidationError):
+        ManagedDocument(
+            document_name=1,
+            content="This is a test",
+            summary="Test's child",
+            q_and_a="Hello? World.",
+            mindmap="Hello -> World",
+            bullet_points=". Hello, . World",
         )

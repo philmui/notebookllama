@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, PrivateAttr
 from sqlalchemy import Engine, create_engine, Connection, Result, text
 from typing_extensions import Self
 from typing import Optional, Any, List, cast
@@ -11,15 +11,17 @@ class ManagedDocument(BaseModel):
     q_and_a: str
     mindmap: str
     bullet_points: str
+    _is_exported: bool = PrivateAttr(default=False)
 
     @model_validator(mode="after")
     def validate_input_for_sql(self) -> Self:
-        self.document_name = self.document_name.replace("'", "''")
-        self.content = self.content.replace("'", "''")
-        self.summary = self.summary.replace("'", "''")
-        self.q_and_a = self.q_and_a.replace("'", "''")
-        self.mindmap = self.mindmap.replace("'", "''")
-        self.bullet_points = self.bullet_points.replace("'", "''")
+        if not self._is_exported:
+            self.document_name = self.document_name.replace("'", "''")
+            self.content = self.content.replace("'", "''")
+            self.summary = self.summary.replace("'", "''")
+            self.q_and_a = self.q_and_a.replace("'", "''")
+            self.mindmap = self.mindmap.replace("'", "''")
+            self.bullet_points = self.bullet_points.replace("'", "''")
         return self
 
 
@@ -44,7 +46,9 @@ class DocumentManager:
         self._connection = self._engine.connect()
 
     def _create_table(self) -> None:
-        self._execute(
+        if not self._connection:
+            self._connect()
+        self._connection.execute(
             text(f"""
         CREATE TABLE IF NOT EXISTS {self.table_name} (
             id SERIAL PRIMARY KEY,
@@ -57,32 +61,39 @@ class DocumentManager:
         );
         """)
         )
+        self._connection.commit()
         self.table_exists = True
 
-    def import_documents(self, document: ManagedDocument) -> None:
+    def import_documents(self, documents: List[ManagedDocument]) -> None:
+        if not self._connection:
+            self._connect()
         if not self.table_exists:
             self._create_table()
-        self._execute(
-            text(
-                f"""
-                INSERT INTO {self.table_name} (document_name, content, summary, q_and_a, mindmap, bullet_points)
-                VALUES (
-                    '{document.document_name}',
-                    '{document.content}',
-                    '{document.summary}',
-                    '{document.q_and_a}',
-                    '{document.mindmap}',
-                    '{document.bullet_points}'
-                );
-                """
+        for document in documents:
+            self._connection.execute(
+                text(
+                    f"""
+                    INSERT INTO {self.table_name} (document_name, content, summary, q_and_a, mindmap, bullet_points)
+                    VALUES (
+                        '{document.document_name}',
+                        '{document.content}',
+                        '{document.summary}',
+                        '{document.q_and_a}',
+                        '{document.mindmap}',
+                        '{document.bullet_points}'
+                    );
+                    """
+                )
             )
-        )
+            self._connection.commit()
 
-    def export_documents(self) -> List[ManagedDocument]:
+    def export_documents(self, limit: Optional[int] = None) -> List[ManagedDocument]:
+        if not limit:
+            limit = 15
         result = self._execute(
             text(
                 f"""
-                SELECT * FROM {self.table_name} ORDER BY id LIMIT 15;
+                SELECT * FROM {self.table_name} ORDER BY id LIMIT {limit};
                 """
             )
         )
@@ -96,6 +107,21 @@ class DocumentManager:
                 q_and_a=row.q_and_a,
                 mindmap=row.mindmap,
                 bullet_points=row.bullet_points,
+                _is_exported=True,
+            )
+            document.mindmap = (
+                document.mindmap.replace('""', '"')
+                .replace("''", "'")
+                .replace("''mynetwork''", "'mynetwork'")
+            )
+            document.document_name = document.document_name.replace('""', '"').replace(
+                "''", "'"
+            )
+            document.content = document.content.replace('""', '"').replace("''", "'")
+            document.summary = document.summary.replace('""', '"').replace("''", "'")
+            document.q_and_a = document.q_and_a.replace('""', '"').replace("''", "'")
+            document.bullet_points = document.bullet_points.replace('""', '"').replace(
+                "''", "'"
             )
             documents.append(document)
         return documents

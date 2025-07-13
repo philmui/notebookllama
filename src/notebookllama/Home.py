@@ -6,10 +6,12 @@ import tempfile as temp
 from dotenv import load_dotenv
 import sys
 import time
+import randomname
 import streamlit.components.v1 as components
 
 from pathlib import Path
 from audio import PODCAST_GEN
+from documents import ManagedDocument, DocumentManager
 from typing import Tuple
 from workflow import NotebookLMWorkflow, FileInputEvent, NotebookOutputEvent
 from instrumentation import OtelTracesSqlEngine
@@ -29,11 +31,13 @@ instrumentor = LlamaIndexOpenTelemetry(
     span_exporter=span_exporter,
     debug=True,
 )
+engine_url = f"postgresql+psycopg2://{os.getenv('pgql_user')}:{os.getenv('pgql_psw')}@localhost:5432/{os.getenv('pgql_db')}"
 sql_engine = OtelTracesSqlEngine(
-    engine_url=f"postgresql+psycopg2://{os.getenv('pgql_user')}:{os.getenv('pgql_psw')}@localhost:5432/{os.getenv('pgql_db')}",
+    engine_url=engine_url,
     table_name="agent_traces",
     service_name="agent.traces",
 )
+document_manager = DocumentManager(engine_url=engine_url)
 
 WF = NotebookLMWorkflow(timeout=600)
 
@@ -44,7 +48,9 @@ def read_html_file(file_path: str) -> str:
         return f.read()
 
 
-async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
+async def run_workflow(
+    file: io.BytesIO, document_title: str
+) -> Tuple[str, str, str, str, str]:
     # Create temp file with proper Windows handling
     with temp.NamedTemporaryFile(suffix=".pdf", delete=False) as fl:
         content = file.getvalue()
@@ -72,6 +78,18 @@ async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
 
         end_time = int(time.time() * 1000000)
         sql_engine.to_sql_database(start_time=st_time, end_time=end_time)
+        document_manager.import_documents(
+            [
+                ManagedDocument(
+                    document_name=document_title,
+                    content=result.md_content,
+                    summary=result.summary,
+                    q_and_a=q_and_a,
+                    mindmap=mind_map,
+                    bullet_points=bullet_points,
+                )
+            ]
+        )
         return result.md_content, result.summary, q_and_a, bullet_points, mind_map
 
     finally:
@@ -85,7 +103,7 @@ async def run_workflow(file: io.BytesIO) -> Tuple[str, str, str, str, str]:
                 pass  # Give up if still locked
 
 
-def sync_run_workflow(file: io.BytesIO):
+def sync_run_workflow(file: io.BytesIO, document_title: str):
     try:
         # Try to use existing event loop
         loop = asyncio.get_event_loop()
@@ -94,15 +112,17 @@ def sync_run_workflow(file: io.BytesIO):
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, run_workflow(file))
+                future = executor.submit(
+                    asyncio.run, run_workflow(file, document_title)
+                )
                 return future.result()
         else:
-            return loop.run_until_complete(run_workflow(file))
+            return loop.run_until_complete(run_workflow(file, document_title))
     except RuntimeError:
         # No event loop exists, create one
         if sys.platform == "win32":
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        return asyncio.run(run_workflow(file))
+        return asyncio.run(run_workflow(file, document_title))
 
 
 async def create_podcast(file_content: str):
@@ -130,9 +150,16 @@ st.sidebar.info("To switch to the Document Chat, select it from above!🔺")
 st.markdown("---")
 st.markdown("## NotebookLlaMa - Home🦙")
 
+document_title = st.text_input(
+    label="Document Title",
+    value=randomname.get_name(
+        adj=("music_theory", "geometry", "emotions"), noun=("cats", "food")
+    ),
+)
 file_input = st.file_uploader(
     label="Upload your source PDF file!", accept_multiple_files=False
 )
+
 
 # Add this after your existing code, before the st.title line:
 
@@ -146,7 +173,7 @@ if file_input is not None:
         with st.spinner("Processing document... This may take a few minutes."):
             try:
                 md_content, summary, q_and_a, bullet_points, mind_map = (
-                    sync_run_workflow(file_input)
+                    sync_run_workflow(file_input, document_title)
                 )
                 st.session_state.workflow_results = {
                     "md_content": md_content,
