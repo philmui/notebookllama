@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator, PrivateAttr
+from pydantic import BaseModel, model_validator, Field
 from sqlalchemy import Engine, create_engine, Connection, Result, text
 from typing_extensions import Self
 from typing import Optional, Any, List, cast
@@ -11,11 +11,11 @@ class ManagedDocument(BaseModel):
     q_and_a: str
     mindmap: str
     bullet_points: str
-    _is_exported: bool = PrivateAttr(default=False)
+    is_exported: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate_input_for_sql(self) -> Self:
-        if not self._is_exported:
+        if not self.is_exported:
             self.document_name = self.document_name.replace("'", "''")
             self.content = self.content.replace("'", "''")
             self.summary = self.summary.replace("'", "''")
@@ -48,6 +48,7 @@ class DocumentManager:
     def _create_table(self) -> None:
         if not self._connection:
             self._connect()
+        self._connection = cast(Connection, self._connection)
         self._connection.execute(
             text(f"""
         CREATE TABLE IF NOT EXISTS {self.table_name} (
@@ -67,6 +68,7 @@ class DocumentManager:
     def import_documents(self, documents: List[ManagedDocument]) -> None:
         if not self._connection:
             self._connect()
+        self._connection = cast(Connection, self._connection)
         if not self.table_exists:
             self._create_table()
         for document in documents:
@@ -107,7 +109,7 @@ class DocumentManager:
                 q_and_a=row.q_and_a,
                 mindmap=row.mindmap,
                 bullet_points=row.bullet_points,
-                _is_exported=True,
+                is_exported=True,
             )
             document.mindmap = (
                 document.mindmap.replace('""', '"')
