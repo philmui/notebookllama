@@ -3,7 +3,8 @@ import pytest
 from src.notebookllama.models import (
     Notebook,
 )
-from src.notebookllama.utils import MindMap, Node, Edge, ClaimVerification
+from src.notebookllama.verifying import ClaimVerification
+from src.notebookllama.mindmap import MindMap, Node, Edge
 from src.notebookllama.audio import MultiTurnConversation, ConversationTurn
 from pydantic import ValidationError
 
