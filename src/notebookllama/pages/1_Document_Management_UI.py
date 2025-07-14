@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
-from typing import List
+from typing import List, Optional
 
 from documents import DocumentManager, ManagedDocument
 
@@ -14,9 +14,13 @@ engine_url = f"postgresql+psycopg2://{os.getenv('pgql_user')}:{os.getenv('pgql_p
 document_manager = DocumentManager(engine_url=engine_url)
 
 
-def view_documents(limit: int) -> List[ManagedDocument]:
+def fetch_documents(names: Optional[List[str]]) -> List[ManagedDocument]:
     """Retrieve documents from the database"""
-    return document_manager.export_documents(limit=limit)
+    return document_manager.get_documents(names=names)
+
+
+def fetch_document_names() -> List[str]:
+    return document_manager.get_names()
 
 
 def display_document(document: ManagedDocument) -> None:
@@ -57,15 +61,17 @@ def main():
     st.markdown("## NotebookLlaMa - Document Management📚")
 
     # Slider for number of documents
-    limit = st.slider(
-        "Number of documents to display:", min_value=1, max_value=50, value=15, step=1
+    names = st.multiselect(
+        options=fetch_document_names(),
+        default=None,
+        label="Select the Documents you want to display",
     )
 
     # Button to load documents
     if st.button("Load Documents", type="primary"):
         with st.spinner("Loading documents..."):
             try:
-                documents = view_documents(limit)
+                documents = fetch_documents(names)
 
                 if documents:
                     st.success(f"Successfully loaded {len(documents)} document(s)")

@@ -4,6 +4,10 @@ from typing_extensions import Self
 from typing import Optional, Any, List, cast
 
 
+def apply_string_correction(string: str) -> str:
+    return string.replace("''", "'").replace('""', '"')
+
+
 class ManagedDocument(BaseModel):
     document_name: str
     content: str
@@ -11,7 +15,7 @@ class ManagedDocument(BaseModel):
     q_and_a: str
     mindmap: str
     bullet_points: str
-    is_exported: bool = Field(default=False)
+    is_exported: bool = Field(default=False, exclude=True)
 
     @model_validator(mode="after")
     def validate_input_for_sql(self) -> Self:
@@ -42,14 +46,17 @@ class DocumentManager:
         else:
             raise ValueError("One of engine or engine_setup_kwargs must be set")
 
+    @property
+    def connection(self) -> Connection:
+        if not self._connection:
+            self._connect()
+        return cast(Connection, self._connection)
+
     def _connect(self) -> None:
         self._connection = self._engine.connect()
 
     def _create_table(self) -> None:
-        if not self._connection:
-            self._connect()
-        self._connection = cast(Connection, self._connection)
-        self._connection.execute(
+        self.connection.execute(
             text(f"""
         CREATE TABLE IF NOT EXISTS {self.table_name} (
             id SERIAL PRIMARY KEY,
@@ -62,17 +69,14 @@ class DocumentManager:
         );
         """)
         )
-        self._connection.commit()
+        self.connection.commit()
         self.table_exists = True
 
-    def import_documents(self, documents: List[ManagedDocument]) -> None:
-        if not self._connection:
-            self._connect()
-        self._connection = cast(Connection, self._connection)
+    def put_documents(self, documents: List[ManagedDocument]) -> None:
         if not self.table_exists:
             self._create_table()
         for document in documents:
-            self._connection.execute(
+            self.connection.execute(
                 text(
                     f"""
                     INSERT INTO {self.table_name} (document_name, content, summary, q_and_a, mindmap, bullet_points)
@@ -87,18 +91,27 @@ class DocumentManager:
                     """
                 )
             )
-            self._connection.commit()
+        self.connection.commit()
 
-    def export_documents(self, limit: Optional[int] = None) -> List[ManagedDocument]:
-        if not limit:
-            limit = 15
-        result = self._execute(
-            text(
-                f"""
-                SELECT * FROM {self.table_name} ORDER BY id LIMIT {limit};
-                """
+    def get_documents(self, names: Optional[List[str]] = None) -> List[ManagedDocument]:
+        if not self.table_exists:
+            self._create_table()
+        if not names:
+            result = self._execute(
+                text(
+                    f"""
+                    SELECT * FROM {self.table_name} ORDER BY id;
+                    """
+                )
             )
-        )
+        else:
+            result = self._execute(
+                text(
+                    f"""
+                    SELECT * FROM {self.table_name} WHERE document_name = ANY(ARRAY{names}) ORDER BY id;
+                    """
+                )
+            )
         rows = result.fetchall()
         documents = []
         for row in rows:
@@ -111,22 +124,28 @@ class DocumentManager:
                 bullet_points=row.bullet_points,
                 is_exported=True,
             )
-            document.mindmap = (
-                document.mindmap.replace('""', '"')
-                .replace("''", "'")
-                .replace("''mynetwork''", "'mynetwork'")
-            )
-            document.document_name = document.document_name.replace('""', '"').replace(
-                "''", "'"
-            )
-            document.content = document.content.replace('""', '"').replace("''", "'")
-            document.summary = document.summary.replace('""', '"').replace("''", "'")
-            document.q_and_a = document.q_and_a.replace('""', '"').replace("''", "'")
-            document.bullet_points = document.bullet_points.replace('""', '"').replace(
-                "''", "'"
-            )
-            documents.append(document)
+            doc_dict = document.model_dump()
+            for field in doc_dict:
+                doc_dict[field] = apply_string_correction(doc_dict[field])
+                if field == "mindmap":
+                    doc_dict[field] = doc_dict[field].replace(
+                        "''mynetwork''", "'mynetwork'"
+                    )
+            documents.append(ManagedDocument.model_validate(doc_dict))
         return documents
+
+    def get_names(self) -> List[str]:
+        if not self.table_exists:
+            self._create_table()
+        result = self._execute(
+            text(
+                f"""
+                SELECT * FROM {self.table_name} ORDER BY id;
+                """
+            )
+        )
+        rows = result.fetchall()
+        return [row.document_name for row in rows]
 
     def _execute(
         self,
@@ -134,10 +153,7 @@ class DocumentManager:
         parameters: Optional[Any] = None,
         execution_options: Optional[Any] = None,
     ) -> Result:
-        if not self._connection:
-            self._connect()
-        self._connection = cast(Connection, self._connection)
-        return self._connection.execute(
+        return self.connection.execute(
             statement=statement,
             parameters=parameters,
             execution_options=execution_options,

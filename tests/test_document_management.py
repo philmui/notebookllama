@@ -67,8 +67,10 @@ def test_document_manager(documents: List[ManagedDocument]) -> None:
     manager._execute(text("DROP TABLE IF EXISTS test_documents;"))
     manager._create_table()
     assert manager.table_exists
-    manager.import_documents(documents=documents)
-    docs = manager.export_documents()
+    manager.put_documents(documents=documents)
+    names = manager.get_names()
+    assert names == [doc.document_name for doc in documents]
+    docs = manager.get_documents()
     assert docs == documents
-    docs1 = manager.export_documents(limit=2)
+    docs1 = manager.get_documents(names=["Project Plan", "Meeting Notes"])
     assert len(docs1) == 2

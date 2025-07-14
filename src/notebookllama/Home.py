@@ -78,7 +78,7 @@ async def run_workflow(
 
         end_time = int(time.time() * 1000000)
         sql_engine.to_sql_database(start_time=st_time, end_time=end_time)
-        document_manager.import_documents(
+        document_manager.put_documents(
             [
                 ManagedDocument(
                     document_name=document_title,
@@ -160,8 +160,6 @@ file_input = st.file_uploader(
     label="Upload your source PDF file!", accept_multiple_files=False
 )
 
-
-# Add this after your existing code, before the st.title line:
 
 # Initialize session state
 if "workflow_results" not in st.session_state:
