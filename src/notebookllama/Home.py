@@ -9,7 +9,7 @@ import time
 import streamlit.components.v1 as components
 
 from pathlib import Path
-from audio import PODCAST_GEN
+from audio import PODCAST_GEN, PodcastConfig
 from typing import Tuple
 from workflow import NotebookLMWorkflow, FileInputEvent, NotebookOutputEvent
 from instrumentation import OtelTracesSqlEngine
@@ -105,13 +105,15 @@ def sync_run_workflow(file: io.BytesIO):
         return asyncio.run(run_workflow(file))
 
 
-async def create_podcast(file_content: str):
-    audio_fl = await PODCAST_GEN.create_conversation(file_transcript=file_content)
+async def create_podcast(file_content: str, config: PodcastConfig = None):
+    audio_fl = await PODCAST_GEN.create_conversation(
+        file_transcript=file_content, config=config
+    )
     return audio_fl
 
 
-def sync_create_podcast(file_content: str):
-    return asyncio.run(create_podcast(file_content=file_content))
+def sync_create_podcast(file_content: str, config: PodcastConfig = None):
+    return asyncio.run(create_podcast(file_content=file_content, config=config))
 
 
 # Display the network
@@ -179,11 +181,87 @@ if file_input is not None:
             st.markdown("## Mind Map")
             components.html(results["mind_map"], height=800, scrolling=True)
 
+        # Podcast Configuration Panel
+        st.markdown("---")
+        st.markdown("## Podcast Configuration")
+
+        with st.expander("Customize Your Podcast", expanded=False):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                style = st.selectbox(
+                    "Conversation Style",
+                    ["conversational", "interview", "debate", "educational"],
+                    help="The overall style of the podcast conversation",
+                )
+
+                tone = st.selectbox(
+                    "Tone",
+                    ["friendly", "professional", "casual", "energetic"],
+                    help="The tone of voice for the conversation",
+                )
+
+                target_audience = st.selectbox(
+                    "Target Audience",
+                    ["general", "technical", "business", "expert", "beginner"],
+                    help="Who is the intended audience for this podcast?",
+                )
+
+            with col2:
+                speaker1_role = st.text_input(
+                    "Speaker 1 Role",
+                    value="host",
+                    help="The role or persona of the first speaker",
+                )
+
+                speaker2_role = st.text_input(
+                    "Speaker 2 Role",
+                    value="guest",
+                    help="The role or persona of the second speaker",
+                )
+
+            # Focus Topics
+            st.markdown("**Focus Topics** (optional)")
+            focus_topics_input = st.text_area(
+                "Enter topics to emphasize (one per line)",
+                help="List specific topics you want the podcast to focus on. Leave empty for general coverage.",
+                placeholder="How can this be applied for Machine Learning Applications?\nUnderstand the historical context\nFuture Implications",
+            )
+
+            # Parse focus topics
+            focus_topics = None
+            if focus_topics_input.strip():
+                focus_topics = [
+                    topic.strip()
+                    for topic in focus_topics_input.split("\n")
+                    if topic.strip()
+                ]
+
+            # Custom Prompt
+            custom_prompt = st.text_area(
+                "Custom Instructions (optional)",
+                help="Add any additional instructions for the podcast generation",
+                placeholder="Make sure to explain technical concepts simply and include real-world examples...",
+            )
+
+            # Create config object
+            podcast_config = PodcastConfig(
+                style=style,
+                tone=tone,
+                focus_topics=focus_topics,
+                target_audience=target_audience,
+                custom_prompt=custom_prompt if custom_prompt.strip() else None,
+                speaker1_role=speaker1_role,
+                speaker2_role=speaker2_role,
+            )
+
         # Second button: Generate Podcast
         if st.button("Generate In-Depth Conversation", type="secondary"):
             with st.spinner("Generating podcast... This may take several minutes."):
                 try:
-                    audio_file = sync_create_podcast(results["md_content"])
+                    audio_file = sync_create_podcast(
+                        results["md_content"], config=podcast_config
+                    )
                     st.success("Podcast generated successfully!")
 
                     # Display audio player

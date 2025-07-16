@@ -2,15 +2,19 @@ import tempfile as temp
 import os
 import uuid
 from dotenv import load_dotenv
+import logging
+from contextlib import asynccontextmanager
 
 from pydub import AudioSegment
 from elevenlabs import AsyncElevenLabs
 from llama_index.core.llms.structured_llm import StructuredLLM
 from typing_extensions import Self
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, AsyncIterator
 from pydantic import BaseModel, ConfigDict, model_validator, Field
 from llama_index.core.llms import ChatMessage
 from llama_index.llms.openai import OpenAIResponses
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationTurn(BaseModel):
@@ -56,6 +60,32 @@ class MultiTurnConversation(BaseModel):
         return self
 
 
+class VoiceConfig(BaseModel):
+    """Configuration for voice settings"""
+
+    speaker1_voice_id: str = Field(
+        default="nPczCjzI2devNBz1zQrb", description="Voice ID for speaker 1"
+    )
+    speaker2_voice_id: str = Field(
+        default="Xb7hH8MSUJpSbSDYk0k2", description="Voice ID for speaker 2"
+    )
+    model_id: str = Field(
+        default="eleven_turbo_v2_5", description="ElevenLabs model ID"
+    )
+    output_format: str = Field(
+        default="mp3_22050_32", description="Audio output format"
+    )
+
+
+class AudioQuality(BaseModel):
+    """Configuration for audio quality settings"""
+
+    bitrate: str = Field(default="320k", description="Audio bitrate")
+    quality_params: List[str] = Field(
+        default=["-q:a", "0"], description="Additional quality parameters"
+    )
+
+
 class PodcastConfig(BaseModel):
     """Configuration for podcast generation"""
 
@@ -94,6 +124,32 @@ class PodcastConfig(BaseModel):
     speaker2_role: str = Field(
         default="guest", description="The role of the second speaker"
     )
+
+    # Voice and audio configuration
+    voice_config: VoiceConfig = Field(
+        default_factory=VoiceConfig, description="Voice configuration for speakers"
+    )
+    audio_quality: AudioQuality = Field(
+        default_factory=AudioQuality, description="Audio quality settings"
+    )
+
+
+class PodcastGeneratorError(Exception):
+    """Base exception for podcast generator errors"""
+
+    pass
+
+
+class AudioGenerationError(PodcastGeneratorError):
+    """Raised when audio generation fails"""
+
+    pass
+
+
+class ConversationGenerationError(PodcastGeneratorError):
+    """Raised when conversation generation fails"""
+
+    pass
 
 
 class PodcastGenerator(BaseModel):
@@ -166,6 +222,7 @@ class PodcastGenerator(BaseModel):
         self, file_transcript: str, config: PodcastConfig
     ) -> MultiTurnConversation:
         """Generate conversation script with customization"""
+        logger.info("Generating conversation script...")
         prompt = self._build_conversation_prompt(file_transcript, config)
 
         response = await self.llm.achat(
@@ -176,52 +233,100 @@ class PodcastGenerator(BaseModel):
                 )
             ]
         )
-        return MultiTurnConversation.model_validate_json(response.message.content)
 
-    async def _conversation_audio(self, conversation: MultiTurnConversation) -> str:
-        """Generate audio for the conversation"""
-        files: List[str] = []
-        for turn in conversation.conversation:
-            if turn.speaker == "speaker1":
-                speech_iterator = self.client.text_to_speech.convert(
-                    voice_id="nPczCjzI2devNBz1zQrb",
-                    text=turn.content,
-                    output_format="mp3_22050_32",
-                    model_id="eleven_turbo_v2_5",
-                )
-            else:
-                speech_iterator = self.client.text_to_speech.convert(
-                    voice_id="Xb7hH8MSUJpSbSDYk0k2",
-                    text=turn.content,
-                    output_format="mp3_22050_32",
-                    model_id="eleven_turbo_v2_5",
-                )
-            fl = temp.NamedTemporaryFile(
+        conversation = MultiTurnConversation.model_validate_json(
+            response.message.content
+        )
+        logger.info(
+            f"Generated conversation with {len(conversation.conversation)} turns"
+        )
+        return conversation
+
+    @asynccontextmanager
+    async def _cleanup_files(self, files: List[str]) -> AsyncIterator[None]:
+        """Context manager to ensure temporary files are cleaned up"""
+        try:
+            yield
+        finally:
+            for file_path in files:
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        logger.debug(f"Cleaned up temporary file: {file_path}")
+                except OSError as e:
+                    logger.warning(f"Failed to clean up file {file_path}: {str(e)}")
+
+    async def _generate_speech_file(
+        self, text: str, voice_id: str, config: PodcastConfig
+    ) -> str:
+        """Generate speech file for a single turn"""
+        try:
+            speech_iterator = self.client.text_to_speech.convert(
+                voice_id=voice_id,
+                text=text,
+                output_format=config.voice_config.output_format,
+                model_id=config.voice_config.model_id,
+            )
+
+            temp_file = temp.NamedTemporaryFile(
                 suffix=".mp3", delete=False, delete_on_close=False
             )
-            with open(fl.name, "wb") as f:
+
+            with open(temp_file.name, "wb") as f:
                 async for chunk in speech_iterator:
                     if chunk:
                         f.write(chunk)
-            files.append(fl.name)
 
-        output_path = f"conversation_{str(uuid.uuid4())}.mp3"
-        combined_audio: AudioSegment = AudioSegment.empty()
+            return temp_file.name
+        except Exception as e:
+            logger.error(f"Failed to generate speech for text: {text[:50]}")
+            raise AudioGenerationError(
+                f"Failed to generate speech for text: {text[:50]}"
+            ) from e
 
-        for file_path in files:
-            audio = AudioSegment.from_file(file_path)
-            combined_audio += audio
+    async def _conversation_audio(
+        self, conversation: MultiTurnConversation, config: PodcastConfig
+    ) -> str:
+        """Generate audio for the conversation"""
+        files: List[str] = []
 
-            # Export with high quality MP3 settings
-            combined_audio.export(
-                output_path,
-                format="mp3",
-                bitrate="320k",  # High quality bitrate
-                parameters=["-q:a", "0"],  # Highest quality
-            )
-            os.remove(file_path)
+        async with self._cleanup_files(files):
+            try:
+                logger.info("Generating audio for conversation")
 
-        return output_path
+                for i, turn in enumerate(conversation.conversation):
+                    voice_id = (
+                        config.voice_config.speaker1_voice_id
+                        if turn.speaker == "speaker1"
+                        else config.voice_config.speaker2_voice_id
+                    )
+                    file_path = await self._generate_speech_file(
+                        turn.content, voice_id, config
+                    )
+                    files.append(file_path)
+
+                logger.info("Combining audio files...")
+                output_path = f"conversation_{str(uuid.uuid4())}.mp3"
+                combined_audio: AudioSegment = AudioSegment.empty()
+
+                for file_path in files:
+                    audio = AudioSegment.from_file(file_path)
+                    combined_audio += audio
+
+                combined_audio.export(
+                    output_path,
+                    format="mp3",
+                    bitrate=config.audio_quality.bitrate,
+                    parameters=config.audio_quality.quality_params,
+                )
+
+                logger.info(f"Successfully created podcast audio: {output_path}")
+                return output_path
+            except Exception as e:
+                logger.error(f"Failed to generate conversation audio: {str(e)}")
+                raise AudioGenerationError(
+                    f"Failed to generate conversation audio: {str(e)}"
+                ) from e
 
     async def create_conversation(
         self, file_transcript: str, config: Optional[PodcastConfig] = None
@@ -230,11 +335,27 @@ class PodcastGenerator(BaseModel):
         if config is None:
             config = PodcastConfig()
 
-        conversation = await self._conversation_script(
-            file_transcript=file_transcript, config=config
-        )
-        podcast_file = await self._conversation_audio(conversation=conversation)
-        return podcast_file
+        try:
+            logger.info("Starting podcast generation...")
+
+            conversation = await self._conversation_script(
+                file_transcript=file_transcript, config=config
+            )
+            podcast_file = await self._conversation_audio(
+                conversation=conversation, config=config
+            )
+
+            logger.info("Podcast generation completed successfully")
+            return podcast_file
+
+        except (ConversationGenerationError, AudioGenerationError) as e:
+            logger.error(f"Failed to generate podcast: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in podcast generation: {str(e)}")
+            raise PodcastGeneratorError(
+                f"Unexpected error in podcast generation: {str(e)}"
+            ) from e
 
 
 load_dotenv()
@@ -245,3 +366,6 @@ if os.getenv("ELEVENLABS_API_KEY", None) and os.getenv("OPENAI_API_KEY", None):
     ).as_structured_llm(MultiTurnConversation)
     EL_CLIENT = AsyncElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
     PODCAST_GEN = PodcastGenerator(llm=SLLM, client=EL_CLIENT)
+else:
+    logger.warning("Missing API keys - PODCAST_GEN not initialized")
+    PODCAST_GEN = None
