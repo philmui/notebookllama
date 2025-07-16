@@ -7,7 +7,7 @@ from pydub import AudioSegment
 from elevenlabs import AsyncElevenLabs
 from llama_index.core.llms.structured_llm import StructuredLLM
 from typing_extensions import Self
-from typing import List, Literal
+from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, model_validator, Field
 from llama_index.core.llms import ChatMessage
 from llama_index.llms.openai import OpenAIResponses
@@ -56,6 +56,46 @@ class MultiTurnConversation(BaseModel):
         return self
 
 
+class PodcastConfig(BaseModel):
+    """Configuration for podcast generation"""
+
+    # Basic style options
+    style: Literal["conversational", "interview", "debate", "educational"] = Field(
+        default="conversational",
+        description="The style of the conversation",
+    )
+    tone: Literal["friendly", "professional", "casual", "energetic"] = Field(
+        default="friendly",
+        description="The tone of the conversation",
+    )
+
+    # Content focus
+    focus_topics: Optional[List[str]] = Field(
+        default=None, description="Specific topics to focus on during the conversation"
+    )
+
+    # Audience targeting
+    target_audience: Literal[
+        "general", "technical", "business", "expert", "beginner"
+    ] = Field(
+        default="general",
+        description="The target audience for the conversation",
+    )
+
+    # Custom user prompt
+    custom_prompt: Optional[str] = Field(
+        default=None, description="Additional instructions for the conversation"
+    )
+
+    # Speaker customization
+    speaker1_role: str = Field(
+        default="host", description="The role of the first speaker"
+    )
+    speaker2_role: str = Field(
+        default="guest", description="The role of the second speaker"
+    )
+
+
 class PodcastGenerator(BaseModel):
     llm: StructuredLLM
     client: AsyncElevenLabs
@@ -72,18 +112,74 @@ class PodcastGenerator(BaseModel):
             )
         return self
 
-    async def _conversation_script(self, file_transcript: str) -> MultiTurnConversation:
+    def _build_conversation_prompt(
+        self, file_transcript: str, config: PodcastConfig
+    ) -> str:
+        """Build a customized prompt based on the configuration"""
+
+        # Base prompt with style and tone
+        prompt = f"""Create a {config.style} podcast conversation with two speakers from this transcript.
+
+        CONVERSATION STYLE: {config.style}
+        TONE: {config.tone}
+        TARGET AUDIENCE: {config.target_audience}
+
+        SPEAKER ROLES:
+        - Speaker 1: {config.speaker1_role}
+        - Speaker 2: {config.speaker2_role}
+        """
+
+        if config.focus_topics:
+            prompt += "\nFOCUS TOPICS: Make sure to discuss these topics in detail:\n"
+            for topic in config.focus_topics:
+                prompt += f"- {topic}\n"
+
+        # Add audience-specific instructions
+        audience_instructions = {
+            "technical": "Use technical terminology appropriately and dive deep into technical details.",
+            "beginner": "Explain concepts clearly and avoid jargon. Define technical terms when used.",
+            "expert": "Assume advanced knowledge and discuss nuanced aspects and implications.",
+            "business": "Focus on practical applications, ROI, and strategic implications.",
+            "general": "Balance accessibility with depth, explaining key concepts clearly.",
+        }
+
+        prompt += (
+            f"\nAUDIENCE APPROACH: {audience_instructions[config.target_audience]}\n"
+        )
+
+        # Add custom prompt if provided
+        if config.custom_prompt:
+            prompt += f"\nADDITIONAL INSTRUCTIONS: {config.custom_prompt}\n"
+
+        # Add the source material
+        prompt += f"\nSOURCE MATERIAL:\n'''\n{file_transcript}\n'''\n"
+
+        # Add final instructions
+        prompt += """
+        IMPORTANT: Create an engaging, natural conversation that flows well between the two speakers.
+        The conversation should feel authentic and provide value to the target audience.
+        """
+
+        return prompt
+
+    async def _conversation_script(
+        self, file_transcript: str, config: PodcastConfig
+    ) -> MultiTurnConversation:
+        """Generate conversation script with customization"""
+        prompt = self._build_conversation_prompt(file_transcript, config)
+
         response = await self.llm.achat(
             messages=[
                 ChatMessage(
                     role="user",
-                    content=f"Please create a multi-turn conversation with two speakers starting from this file transcript:\n\n'''\n{file_transcript}\n'''",
+                    content=prompt,
                 )
             ]
         )
         return MultiTurnConversation.model_validate_json(response.message.content)
 
     async def _conversation_audio(self, conversation: MultiTurnConversation) -> str:
+        """Generate audio for the conversation"""
         files: List[str] = []
         for turn in conversation.conversation:
             if turn.speaker == "speaker1":
@@ -127,8 +223,16 @@ class PodcastGenerator(BaseModel):
 
         return output_path
 
-    async def create_conversation(self, file_transcript: str):
-        conversation = await self._conversation_script(file_transcript=file_transcript)
+    async def create_conversation(
+        self, file_transcript: str, config: Optional[PodcastConfig] = None
+    ):
+        """Main method to create a customized podcast conversation"""
+        if config is None:
+            config = PodcastConfig()
+
+        conversation = await self._conversation_script(
+            file_transcript=file_transcript, config=config
+        )
         podcast_file = await self._conversation_audio(conversation=conversation)
         return podcast_file
 
