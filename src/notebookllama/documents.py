@@ -37,11 +37,13 @@ class DocumentManager:
         table_metadata: Optional[MetaData] = None,
     ):
         self.table_name: str = table_name or "documents"
-        self.table: Optional[Table] = None
+        self._table: Optional[Table] = None
         self._connection: Optional[Connection] = None
-        self.metadata: Optional[MetaData] = table_metadata or MetaData()
+        self.metadata: MetaData = cast(MetaData, table_metadata or MetaData())
         if engine or engine_url:
-            self._engine: Union[Engine, str] = engine or engine_url
+            self._engine: Union[Engine, str] = cast(
+                Union[Engine, str], engine or engine_url
+            )
         else:
             raise ValueError("One of engine or engine_setup_kwargs must be set")
 
@@ -51,6 +53,12 @@ class DocumentManager:
             self._connect()
         return cast(Connection, self._connection)
 
+    @property
+    def table(self) -> Table:
+        if not self._table:
+            self._create_table()
+        return cast(Table, self._table)
+
     def _connect(self) -> None:
         # move network calls outside of constructor
         if isinstance(self._engine, str):
@@ -58,7 +66,7 @@ class DocumentManager:
         self._connection = self._engine.connect()
 
     def _create_table(self) -> None:
-        self.table = Table(
+        self._table = Table(
             self.table_name,
             self.metadata,
             Column("id", Integer, primary_key=True, autoincrement=True),
@@ -69,11 +77,9 @@ class DocumentManager:
             Column("mindmap", Text),
             Column("bullet_points", Text),
         )
-        self.table.create(self.connection, checkfirst=True)
+        self._table.create(self.connection, checkfirst=True)
 
     def put_documents(self, documents: List[ManagedDocument]) -> None:
-        if not self.table:
-            self._create_table()
         for document in documents:
             stmt = insert(self.table).values(
                 document_name=document.document_name,
@@ -87,7 +93,7 @@ class DocumentManager:
         self.connection.commit()
 
     def get_documents(self, names: Optional[List[str]] = None) -> List[ManagedDocument]:
-        if not self.table_exists:
+        if self.table is None:
             self._create_table()
         if not names:
             stmt = select(self.table).order_by(self.table.c.id)
@@ -114,7 +120,7 @@ class DocumentManager:
         return documents
 
     def get_names(self) -> List[str]:
-        if not self.table_exists:
+        if self.table is None:
             self._create_table()
         stmt = select(self.table)
         result = self.connection.execute(stmt)
@@ -124,4 +130,7 @@ class DocumentManager:
     def disconnect(self) -> None:
         if not self._connection:
             raise ValueError("Engine was never connected!")
-        self._engine.dispose(close=True)
+        if isinstance(self._engine, str):
+            pass
+        else:
+            self._engine.dispose(close=True)

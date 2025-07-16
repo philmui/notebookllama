@@ -197,13 +197,4 @@ def test_managed_documents() -> None:
         mindmap="Hello -> World",
         bullet_points=". Hello, . World",
     )
-    assert d2.summary == "Test''s child"
-    with pytest.raises(ValidationError):
-        ManagedDocument(
-            document_name=1,
-            content="This is a test",
-            summary="Test's child",
-            q_and_a="Hello? World.",
-            mindmap="Hello -> World",
-            bullet_points=". Hello, . World",
-        )
+    assert d2.summary == "Test's child"

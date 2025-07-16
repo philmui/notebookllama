@@ -150,20 +150,28 @@ st.sidebar.info("To switch to the Document Chat, select it from above!🔺")
 st.markdown("---")
 st.markdown("## NotebookLlaMa - Home🦙")
 
+# Initialize session state BEFORE creating the text input
+if "workflow_results" not in st.session_state:
+    st.session_state.workflow_results = None
+if "document_title" not in st.session_state:
+    st.session_state.document_title = randomname.get_name(
+        adj=("music_theory", "geometry", "emotions"), noun=("cats", "food")
+    )
+
+# Use session_state as the value and update it when changed
 document_title = st.text_input(
     label="Document Title",
-    value=randomname.get_name(
-        adj=("music_theory", "geometry", "emotions"), noun=("cats", "food")
-    ),
+    value=st.session_state.document_title,
+    key="document_title_input",
 )
+
+# Update session state when the input changes
+if document_title != st.session_state.document_title:
+    st.session_state.document_title = document_title
+
 file_input = st.file_uploader(
     label="Upload your source PDF file!", accept_multiple_files=False
 )
-
-
-# Initialize session state
-if "workflow_results" not in st.session_state:
-    st.session_state.workflow_results = None
 
 if file_input is not None:
     # First button: Process Document
@@ -171,7 +179,7 @@ if file_input is not None:
         with st.spinner("Processing document... This may take a few minutes."):
             try:
                 md_content, summary, q_and_a, bullet_points, mind_map = (
-                    sync_run_workflow(file_input, document_title)
+                    sync_run_workflow(file_input, st.session_state.document_title)
                 )
                 st.session_state.workflow_results = {
                     "md_content": md_content,

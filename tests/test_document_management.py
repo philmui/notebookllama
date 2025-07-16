@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from typing import List
 
 from src.notebookllama.documents import DocumentManager, ManagedDocument
-from sqlalchemy import text
+from sqlalchemy import text, Table
 
 ENV = load_dotenv()
 
@@ -63,10 +63,11 @@ def documents() -> List[ManagedDocument]:
 def test_document_manager(documents: List[ManagedDocument]) -> None:
     engine_url = f"postgresql+psycopg2://{os.getenv('pgql_user')}:{os.getenv('pgql_psw')}@localhost:5432/{os.getenv('pgql_db')}"
     manager = DocumentManager(engine_url=engine_url, table_name="test_documents")
-    assert not manager.table_exists
-    manager._execute(text("DROP TABLE IF EXISTS test_documents;"))
+    assert not manager.table
+    manager.connection.execute(text("DROP TABLE IF EXISTS test_documents;"))
+    manager.connection.commit()
     manager._create_table()
-    assert manager.table_exists
+    assert isinstance(manager.table, Table)
     manager.put_documents(documents=documents)
     names = manager.get_names()
     assert names == [doc.document_name for doc in documents]
