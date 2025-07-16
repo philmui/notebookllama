@@ -360,6 +360,8 @@ class PodcastGenerator(BaseModel):
 
 load_dotenv()
 
+PODCAST_GEN: Optional[PodcastGenerator]
+
 if os.getenv("ELEVENLABS_API_KEY", None) and os.getenv("OPENAI_API_KEY", None):
     SLLM = OpenAIResponses(
         model="gpt-4.1", api_key=os.getenv("OPENAI_API_KEY")
