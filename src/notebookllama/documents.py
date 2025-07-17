@@ -55,7 +55,7 @@ class DocumentManager:
 
     @property
     def table(self) -> Table:
-        if not self._table:
+        if self._table is None:
             self._create_table()
         return cast(Table, self._table)
 
