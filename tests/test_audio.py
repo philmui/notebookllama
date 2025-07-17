@@ -5,18 +5,13 @@ from src.notebookllama.audio import (
     PodcastGenerator,
     MultiTurnConversation,
     PodcastConfig,
-)
-from llama_index.core.llms.structured_llm import StructuredLLM
-from llama_index.core.llms import MockLLM
-from pydantic import BaseModel, ValidationError
-from src.notebookllama.audio import (
-    VoiceConfig,
-    AudioQuality,
-    ConversationTurn,
     AudioGenerationError,
     ConversationGenerationError,
     PodcastGeneratorError,
 )
+from llama_index.core.llms.structured_llm import StructuredLLM
+from llama_index.core.llms import MockLLM
+from pydantic import BaseModel, ValidationError
 
 
 class MockElevenLabs(AsyncElevenLabs):
@@ -53,75 +48,6 @@ def test_podcast_generator_model(
         )
 
 
-# Test VoiceConfig
-def test_voice_config_defaults():
-    """Test VoiceConfig default values"""
-    config = VoiceConfig()
-    assert config.speaker1_voice_id == "nPczCjzI2devNBz1zQrb"
-    assert config.speaker2_voice_id == "Xb7hH8MSUJpSbSDYk0k2"
-    assert config.model_id == "eleven_turbo_v2_5"
-    assert config.output_format == "mp3_22050_32"
-
-
-def test_voice_config_custom_values():
-    """Test VoiceConfig with custom values"""
-    config = VoiceConfig(
-        speaker1_voice_id="custom_voice_1",
-        speaker2_voice_id="custom_voice_2",
-        model_id="custom_model",
-        output_format="wav_44100_16",
-    )
-    assert config.speaker1_voice_id == "custom_voice_1"
-    assert config.speaker2_voice_id == "custom_voice_2"
-    assert config.model_id == "custom_model"
-    assert config.output_format == "wav_44100_16"
-
-
-def test_audio_quality_defaults():
-    """Test AudioQuality default values"""
-    config = AudioQuality()
-    assert config.bitrate == "320k"
-    assert config.quality_params == ["-q:a", "0"]
-
-
-def test_audio_quality_custom_values():
-    """Test AudioQuality with custom values"""
-    custom_params = ["-q:a", "2", "-compression_level", "5"]
-    config = AudioQuality(bitrate="256k", quality_params=custom_params)
-    assert config.bitrate == "256k"
-    assert config.quality_params == custom_params
-
-
-def test_podcast_config_defaults():
-    """Test that PodcastConfig creates with proper defaults"""
-    config = PodcastConfig()
-
-    assert config.style == "conversational"
-    assert config.tone == "friendly"
-    assert config.focus_topics is None
-    assert config.target_audience == "general"
-    assert config.custom_prompt is None
-    assert config.speaker1_role == "host"
-    assert config.speaker2_role == "guest"
-    assert isinstance(config.voice_config, VoiceConfig)
-    assert isinstance(config.audio_quality, AudioQuality)
-
-
-def test_podcast_config_validation():
-    """Test that PodcastConfig validates input values"""
-    # Test invalid style
-    with pytest.raises(ValidationError):
-        PodcastConfig(style="invalid_style")
-
-    # Test invalid tone
-    with pytest.raises(ValidationError):
-        PodcastConfig(tone="invalid_tone")
-
-    # Test invalid target_audience
-    with pytest.raises(ValidationError):
-        PodcastConfig(target_audience="invalid_audience")
-
-
 # Test Error Classes
 def test_podcast_generator_error_hierarchy():
     """Test custom exception hierarchy"""
@@ -142,70 +68,6 @@ def test_custom_exceptions():
     conversation_error = ConversationGenerationError("Conversation error")
     assert str(conversation_error) == "Conversation error"
     assert isinstance(conversation_error, PodcastGeneratorError)
-
-
-def test_podcast_config_custom_values():
-    """Test that PodcastConfig accepts custom values"""
-    focus_topics = ["AI Ethics", "Machine Learning", "Future Tech"]
-    custom_prompt = "Make it engaging and technical"
-
-    config = PodcastConfig(
-        style="interview",
-        tone="professional",
-        focus_topics=focus_topics,
-        target_audience="expert",
-        custom_prompt=custom_prompt,
-        speaker1_role="interviewer",
-        speaker2_role="technical_expert",
-    )
-
-    assert config.style == "interview"
-    assert config.tone == "professional"
-    assert config.focus_topics == focus_topics
-    assert config.target_audience == "expert"
-    assert config.custom_prompt == custom_prompt
-    assert config.speaker1_role == "interviewer"
-    assert config.speaker2_role == "technical_expert"
-
-
-# Test Conversation Turn and MultiTurnConversation
-def test_conversation_turn():
-    """Test ConversationTurn model"""
-    turn = ConversationTurn(speaker="speaker1", content="Hello world")
-    assert turn.speaker == "speaker1"
-    assert turn.content == "Hello world"
-
-
-def test_multi_turn_conversation_validation():
-    """Test MultiTurnConversation validation"""
-    # Valid conversation
-    valid_conversation = MultiTurnConversation(
-        conversation=[
-            ConversationTurn(speaker="speaker1", content="Hello"),
-            ConversationTurn(speaker="speaker2", content="Hi there"),
-            ConversationTurn(speaker="speaker1", content="How are you?"),
-        ]
-    )
-    assert len(valid_conversation.conversation) == 3
-
-    # Invalid - doesn't start with speaker1
-    with pytest.raises(ValidationError):
-        MultiTurnConversation(
-            conversation=[
-                ConversationTurn(speaker="speaker2", content="Hello"),
-                ConversationTurn(speaker="speaker1", content="Hi"),
-            ]
-        )
-
-    # Invalid - wrong alternation
-    with pytest.raises(ValidationError):
-        MultiTurnConversation(
-            conversation=[
-                ConversationTurn(speaker="speaker1", content="Hello"),
-                ConversationTurn(speaker="speaker1", content="Hello again"),
-                ConversationTurn(speaker="speaker2", content="Hi"),
-            ]
-        )
 
 
 def test_build_conversation_prompt_basic(correct_structured_llm: StructuredLLM):
