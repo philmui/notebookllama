@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/run-llama-notebookllama-badge.png)](https://mseep.ai/app/run-llama-notebookllama)
+
 # NotebookLlaMa🦙
 
 ## A fluffy and open-source alternative to NotebookLM!
