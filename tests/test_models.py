@@ -8,8 +8,6 @@ from src.notebookllama.mindmap import MindMap, Node, Edge
 from src.notebookllama.audio import MultiTurnConversation, ConversationTurn
 from src.notebookllama.documents import ManagedDocument
 from src.notebookllama.audio import (
-    MultiTurnConversation,
-    ConversationTurn,
     PodcastConfig,
     VoiceConfig,
     AudioQuality,
@@ -181,7 +179,6 @@ def test_claim_verification() -> None:
         )
 
 
-
 def test_managed_documents() -> None:
     d1 = ManagedDocument(
         document_name="Hello World",
@@ -206,6 +203,7 @@ def test_managed_documents() -> None:
         bullet_points=". Hello, . World",
     )
     assert d2.summary == "Test's child"
+
 
 # Test Audio Configuration Models
 def test_voice_config_defaults():
