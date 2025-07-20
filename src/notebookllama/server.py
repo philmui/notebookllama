@@ -1,3 +1,22 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables first
+load_dotenv()
+
+# Configure OpenTelemetry at SDK level BEFORE any imports
+ENABLE_OBSERVABILITY = os.getenv("ENABLE_OBSERVABILITY", "true").lower() == "true"
+
+if not ENABLE_OBSERVABILITY:
+    # Disable OpenTelemetry at SDK level
+    os.environ["OTEL_TRACES_SAMPLER"] = "off"
+    os.environ["OTEL_TRACES_EXPORTER"] = "none"
+    os.environ["OTEL_METRICS_EXPORTER"] = "none"
+    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+    print("📊 OpenTelemetry disabled at SDK level (server)")
+else:
+    print("📊 OpenTelemetry enabled (server)")
+
 from querying import query_index
 from processing import process_file
 from mindmap import get_mind_map

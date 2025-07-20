@@ -1,5 +1,5 @@
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from cli.embedding_app import EmbeddingSetupApp
 
 from llama_cloud import (
@@ -15,7 +15,7 @@ def main():
     """
     Create a new Llama Cloud index with the given embedding configuration.
     """
-    load_dotenv()
+    load_dotenv(find_dotenv())
     client = LlamaCloud(token=os.getenv("LLAMACLOUD_API_KEY"))
 
     # Run the embedding setup app to get the embedding configuration

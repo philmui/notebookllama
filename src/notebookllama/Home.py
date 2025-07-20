@@ -22,15 +22,43 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
 
 load_dotenv()
 
-# define a custom span exporter
-span_exporter = OTLPSpanExporter("http://localhost:4318/v1/traces")
+# Configure OpenTelemetry at SDK level BEFORE any imports
+ENABLE_OBSERVABILITY = os.getenv("ENABLE_OBSERVABILITY", "true").lower() == "true"
 
-# initialize the instrumentation object
-instrumentor = LlamaIndexOpenTelemetry(
-    service_name_or_resource="agent.traces",
-    span_exporter=span_exporter,
-    debug=True,
-)
+if not ENABLE_OBSERVABILITY:
+    # Disable OpenTelemetry at SDK level
+    os.environ["OTEL_TRACES_SAMPLER"] = "off"
+    os.environ["OTEL_TRACES_EXPORTER"] = "none"
+    os.environ["OTEL_METRICS_EXPORTER"] = "none"
+    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+    print("📊 OpenTelemetry disabled at SDK level")
+else:
+    print("📊 OpenTelemetry enabled")
+
+# Configure observability based on environment
+OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
+
+# Initialize observability only if enabled
+instrumentor = None
+if ENABLE_OBSERVABILITY:
+    try:
+        # define a custom span exporter
+        span_exporter = OTLPSpanExporter(OTLP_ENDPOINT)
+        
+        # initialize the instrumentation object
+        instrumentor = LlamaIndexOpenTelemetry(
+            service_name_or_resource="agent.traces",
+            span_exporter=span_exporter,
+            debug=True,
+        )
+        print(f"✅ OpenTelemetry initialized with endpoint: {OTLP_ENDPOINT}")
+    except Exception as e:
+        print(f"⚠️  OpenTelemetry initialization failed: {e}")
+        print("📊 Continuing without observability...")
+        instrumentor = None
+else:
+    print("📊 Observability disabled via ENABLE_OBSERVABILITY=false")
+
 engine_url = f"postgresql+psycopg2://{os.getenv('pgql_user')}:{os.getenv('pgql_psw')}@localhost:5432/{os.getenv('pgql_db')}"
 sql_engine = OtelTracesSqlEngine(
     engine_url=engine_url,
@@ -314,4 +342,5 @@ else:
     st.info("Please upload a PDF file to get started.")
 
 if __name__ == "__main__":
-    instrumentor.start_registering()
+    if instrumentor:
+        instrumentor.start_registering()

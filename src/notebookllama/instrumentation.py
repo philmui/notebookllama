@@ -1,9 +1,13 @@
 import requests
 import time
 import pandas as pd
+import logging
 
 from sqlalchemy import Engine, create_engine, Connection, Result
 from typing import Optional, Dict, Any, List, Literal, Union, cast
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class OtelTracesSqlEngine:
@@ -25,7 +29,11 @@ class OtelTracesSqlEngine:
             raise ValueError("One of engine or engine_setup_kwargs must be set")
 
     def _connect(self) -> None:
-        self._connection = self._engine.connect()
+        try:
+            self._connection = self._engine.connect()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            raise
 
     def _export(
         self,
@@ -41,9 +49,18 @@ class OtelTracesSqlEngine:
             "end": end_time or int(time.time() * 1000000),
             "limit": limit or 1000,
         }
-        response = requests.get(url, params=params)
-        print(response.json())
-        return response.json()
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to export traces from Jaeger: {e}")
+            # Return empty data structure to prevent crashes
+            return {"data": []}
+        except Exception as e:
+            logger.error(f"Unexpected error during trace export: {e}")
+            return {"data": []}
 
     def _to_pandas(self, data: Dict[str, Any]) -> pd.DataFrame:
         rows: List[Dict[str, Any]] = []
@@ -95,13 +112,17 @@ class OtelTracesSqlEngine:
         dataframe: pd.DataFrame,
         if_exists_policy: Optional[Literal["fail", "replace", "append"]] = None,
     ) -> None:
-        if not self._connection:
-            self._connect()
-        dataframe.to_sql(
-            name=self.table_name,
-            con=self._connection,
-            if_exists=if_exists_policy or "append",
-        )
+        try:
+            if not self._connection:
+                self._connect()
+            dataframe.to_sql(
+                name=self.table_name,
+                con=self._connection,
+                if_exists=if_exists_policy or "append",
+            )
+        except Exception as e:
+            logger.error(f"Failed to write traces to database: {e}")
+            # Don't raise the exception to prevent application crashes
 
     def to_sql_database(
         self,
@@ -110,9 +131,15 @@ class OtelTracesSqlEngine:
         limit: Optional[int] = None,
         if_exists_policy: Optional[Literal["fail", "replace", "append"]] = None,
     ) -> None:
-        data = self._export(start_time=start_time, end_time=end_time, limit=limit)
-        df = self._to_pandas(data=data)
-        self._to_sql(dataframe=df, if_exists_policy=if_exists_policy)
+        try:
+            data = self._export(start_time=start_time, end_time=end_time, limit=limit)
+            df = self._to_pandas(data=data)
+            if not df.empty:
+                self._to_sql(dataframe=df, if_exists_policy=if_exists_policy)
+            else:
+                logger.info("No trace data to export")
+        except Exception as e:
+            logger.error(f"Failed to export traces to database: {e}")
 
     def execute(
         self,
@@ -121,25 +148,38 @@ class OtelTracesSqlEngine:
         execution_options: Optional[Any] = None,
         return_pandas: bool = False,
     ) -> Union[Result, pd.DataFrame]:
-        if not self._connection:
-            self._connect()
-        if not return_pandas:
-            self._connection = cast(Connection, self._connection)
-            return self._connection.execute(
-                statement=statement,
-                parameters=parameters,
-                execution_options=execution_options,
-            )
-        return pd.read_sql(sql=statement, con=self._connection)
+        try:
+            if not self._connection:
+                self._connect()
+            if not return_pandas:
+                self._connection = cast(Connection, self._connection)
+                return self._connection.execute(
+                    statement=statement,
+                    parameters=parameters,
+                    execution_options=execution_options,
+                )
+            return pd.read_sql(sql=statement, con=self._connection)
+        except Exception as e:
+            logger.error(f"Failed to execute SQL statement: {e}")
+            raise
 
     def to_pandas(
         self,
     ) -> pd.DataFrame:
-        if not self._connection:
-            self._connect()
-        return pd.read_sql_table(table_name=self.table_name, con=self._connection)
+        try:
+            if not self._connection:
+                self._connect()
+            return pd.read_sql_table(table_name=self.table_name, con=self._connection)
+        except Exception as e:
+            logger.error(f"Failed to read traces from database: {e}")
+            # Return empty DataFrame to prevent crashes
+            return pd.DataFrame()
 
     def disconnect(self) -> None:
-        if not self._connection:
-            raise ValueError("Engine was never connected!")
-        self._engine.dispose(close=True)
+        try:
+            if not self._connection:
+                raise ValueError("Engine was never connected!")
+            self._engine.dispose(close=True)
+        except Exception as e:
+            logger.error(f"Failed to disconnect from database: {e}")
+            raise
